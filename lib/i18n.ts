@@ -155,6 +155,8 @@ const es: Dict = {
     statEngagement: "Interacción media",
     empty: "Aún no hay personas. Despliega tu primer adoptador sintético para empezar a sembrar.",
     deployFirst: "Despliega tu primera persona",
+    dbError:
+      "Los datos de las personas se sirven desde DynamoDB en tu entorno desplegado. Aquí parece inaccesible, así que la flota en vivo aún no se puede cargar; despliega o verifica las credenciales de la integración.",
     colName: "Persona",
     colPlatform: "Plataforma",
     colHours: "Horario laboral",
