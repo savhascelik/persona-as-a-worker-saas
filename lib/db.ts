@@ -79,6 +79,7 @@ export async function createCompany(id: string, input: CompanyInput): Promise<Co
     role: "MANAGER",
     totalCredits: STARTER_GRANT,
     creditsConsumed: 0,
+    suggestedSkillIds: input.suggestedSkillIds,
     createdAt: Date.now(),
   }
   await docClient.send(

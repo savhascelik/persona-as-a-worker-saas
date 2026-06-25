@@ -42,7 +42,9 @@ export function PersonaWizard({
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [step, setStep] = useState(1)
-  const [skillIds, setSkillIds] = useState<string[]>(persona?.skillIds ?? defaultSkillIds ?? [])
+  const [skillIds, setSkillIds] = useState<string[]>(
+    persona?.skillIds ?? defaultSkillIds?.slice(0, MAX_SKILLS) ?? [],
+  )
   const [companyId, setCompanyId] = useState(persona?.companyId ?? defaultCompanyId ?? companies[0]?.id ?? "")
 
   function toggleSkill(id: string) {

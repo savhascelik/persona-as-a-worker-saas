@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { Building2, Clock, Moon, Pencil, Plus, Timer, Trash2, TriangleAlert, Users } from "lucide-react"
 import { useI18n } from "@/components/i18n-provider"
 import { useSession } from "@/components/session-provider"
@@ -27,6 +28,7 @@ export function DashboardClient({
   dbError?: string | null
 }) {
   const { t } = useI18n()
+  const router = useRouter()
   const { skillMap } = useSkills()
   const { activeCompanyId, setActiveCompanyId } = useSession()
   const [wizardOpen, setWizardOpen] = useState(false)
@@ -293,11 +295,20 @@ export function DashboardClient({
         <PersonaWizard
           companies={companies}
           defaultCompanyId={activeCompanyId ?? undefined}
+          defaultSkillIds={editing ? undefined : activeCompany?.suggestedSkillIds}
           persona={editing}
           onClose={() => setWizardOpen(false)}
         />
       )}
-      {connectOpen && <ConnectPlatformForm onClose={() => setConnectOpen(false)} />}
+      {connectOpen && (
+        <ConnectPlatformForm
+          onClose={() => setConnectOpen(false)}
+          onCreated={(company) => {
+            setActiveCompanyId(company.id)
+            router.refresh()
+          }}
+        />
+      )}
     </div>
   )
 }

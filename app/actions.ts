@@ -76,10 +76,14 @@ export async function listCompaniesAction(): Promise<Company[]> {
 }
 
 export async function createCompanyAction(formData: FormData): Promise<CompanyResult> {
+  const suggestedSkillIds = [
+    ...new Set(formData.getAll("suggestedSkillIds").map((v) => String(v).trim()).filter(Boolean)),
+  ]
   const input: CompanyInput = {
     name: String(formData.get("name") || "").trim(),
     domain: String(formData.get("domain") || "").trim(),
     baseUrl: String(formData.get("baseUrl") || "").trim(),
+    suggestedSkillIds: suggestedSkillIds.length ? suggestedSkillIds : undefined,
   }
 
   if (!input.name || !input.domain || !input.baseUrl) {

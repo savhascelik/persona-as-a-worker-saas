@@ -46,9 +46,9 @@ export function scanEndpoint(url: string): ScanResult {
 
   // Always include the universally-available read tool, then admit each other
   // tool based on bits of the hash so different endpoints differ meaningfully.
-  const tools = TOOL_CATALOG.filter((tool, i) => tool === "read_data" || ((seed >> i) & 1) === 1)
+  const tools: string[] = TOOL_CATALOG.filter((tool, i) => tool === "read_data" || ((seed >> i) & 1) === 1)
 
-  const toolSet = new Set(tools)
+  const toolSet = new Set<string>(tools)
   const compatibleSkillIds = SKILLS.filter((skill) =>
     skill.requiredTools.every((t) => toolSet.has(t)),
   ).map((s) => s.id)

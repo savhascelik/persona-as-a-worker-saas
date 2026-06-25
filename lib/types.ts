@@ -20,6 +20,8 @@ export interface Company {
   totalCredits: number
   /** Cumulative credits consumed across the company's lifetime. */
   creditsConsumed: number
+  /** Skills the MCP scanner detected as compatible at onboarding. */
+  suggestedSkillIds?: string[]
   createdAt: number
 }
 
