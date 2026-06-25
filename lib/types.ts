@@ -94,8 +94,10 @@ export interface SkillTemplate {
   /** Lucide icon name used for rendering, e.g. "Sparkles". */
   iconName: string
   activityVerbs: string[]
-  /** The natural-language prompt used to generate this template. */
-  prompt: string
+  /** How the template was created: AI-generated or manually authored. */
+  source: "ai" | "manual"
+  /** The natural-language prompt used to generate this template, if any. */
+  prompt?: string
   createdAt: number
 }
 

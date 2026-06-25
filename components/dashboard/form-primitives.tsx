@@ -1,17 +1,34 @@
 "use client"
 
-import type { ReactNode } from "react"
+import type { ReactNode, TextareaHTMLAttributes } from "react"
 import { X } from "lucide-react"
 
 export const inputClass =
   "h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring"
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string
+  htmlFor?: string
+  children: ReactNode
+}) {
   return (
-    <label className="block space-y-1.5">
+    <label htmlFor={htmlFor} className="block space-y-1.5">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       {children}
     </label>
+  )
+}
+
+export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      {...props}
+      className="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:ring-1 focus:ring-ring"
+    />
   )
 }
 

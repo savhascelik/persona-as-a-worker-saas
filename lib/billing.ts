@@ -45,6 +45,10 @@ export const PACKAGE_MAP: Record<string, SeedingPackage> = Object.fromEntries(
   SEEDING_PACKAGES.map((p) => [p.id, p]),
 )
 
+export function getPackage(id: string): SeedingPackage | undefined {
+  return PACKAGE_MAP[id]
+}
+
 /**
  * Credit costs per autonomous action, expressed in "actions" so package sizes
  * map intuitively (a Starter pack funds ~1,000 of these).
