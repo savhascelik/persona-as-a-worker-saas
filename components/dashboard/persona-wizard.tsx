@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react"
 import { Check } from "lucide-react"
 import { useI18n } from "@/components/i18n-provider"
+import { useSkills } from "@/components/skills-provider"
 import { createPersonaWithSkills, updatePersonaAction } from "@/app/actions"
-import { MAX_SKILLS, SKILL_MAP } from "@/lib/skills"
+import { MAX_SKILLS } from "@/lib/skills"
 import type { Company, Persona } from "@/lib/types"
 import { Field, Modal, inputClass } from "./form-primitives"
 import { SkillMarketplace } from "./skill-marketplace"
@@ -25,20 +26,23 @@ const TIMEZONES = [
 export function PersonaWizard({
   companies,
   defaultCompanyId,
+  defaultSkillIds,
   persona,
   onClose,
 }: {
   companies: Company[]
   defaultCompanyId?: string
+  defaultSkillIds?: string[]
   persona?: Persona
   onClose: () => void
 }) {
   const { t } = useI18n()
+  const { skillMap } = useSkills()
   const isEdit = Boolean(persona)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [step, setStep] = useState(1)
-  const [skillIds, setSkillIds] = useState<string[]>(persona?.skillIds ?? [])
+  const [skillIds, setSkillIds] = useState<string[]>(persona?.skillIds ?? defaultSkillIds ?? [])
   const [companyId, setCompanyId] = useState(persona?.companyId ?? defaultCompanyId ?? companies[0]?.id ?? "")
 
   function toggleSkill(id: string) {
@@ -163,7 +167,7 @@ export function PersonaWizard({
           <div className="rounded-lg border border-border bg-background/40 p-3">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.wizard.selectedSkills}</p>
             <p className="mt-1 text-sm text-foreground">
-              {skillIds.length === 0 ? t.wizard.none : skillIds.map((id) => SKILL_MAP[id]?.name).join(", ")}
+              {skillIds.length === 0 ? t.wizard.none : skillIds.map((id) => skillMap[id]?.name ?? id).join(", ")}
             </p>
           </div>
         </div>

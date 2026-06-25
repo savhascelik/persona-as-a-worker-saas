@@ -2,7 +2,8 @@
 
 import { Check, Plus } from "lucide-react"
 import { useI18n } from "@/components/i18n-provider"
-import { MAX_SKILLS, SKILLS } from "@/lib/skills"
+import { useSkills } from "@/components/skills-provider"
+import { MAX_SKILLS } from "@/lib/skills"
 
 export function SkillMarketplace({
   selected,
@@ -12,11 +13,12 @@ export function SkillMarketplace({
   onToggle: (id: string) => void
 }) {
   const { t } = useI18n()
+  const { skills } = useSkills()
   const atLimit = selected.length >= MAX_SKILLS
 
   return (
     <div className="grid gap-3">
-      {SKILLS.map((skill) => {
+      {skills.map((skill) => {
         const isSelected = selected.includes(skill.id)
         const isDisabled = !isSelected && atLimit
         const Icon = skill.icon

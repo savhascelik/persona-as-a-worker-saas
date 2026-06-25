@@ -8,6 +8,7 @@ const styles: Record<PersonaStatus, string> = {
   seeding: "border-accent/30 bg-accent/10 text-accent",
   idle: "border-amber-500/30 bg-amber-500/10 text-amber-500",
   offline: "border-border bg-muted text-muted-foreground",
+  hibernating: "border-sky-500/30 bg-sky-500/10 text-sky-500",
 }
 
 const dotStyles: Record<PersonaStatus, string> = {
@@ -15,6 +16,7 @@ const dotStyles: Record<PersonaStatus, string> = {
   seeding: "bg-accent",
   idle: "bg-amber-500",
   offline: "bg-muted-foreground",
+  hibernating: "bg-sky-500",
 }
 
 export function StatusBadge({ status }: { status: PersonaStatus }) {

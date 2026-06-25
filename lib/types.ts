@@ -1,6 +1,9 @@
-export type PersonaStatus = "active" | "idle" | "offline" | "seeding"
+export type PersonaStatus = "active" | "idle" | "offline" | "seeding" | "hibernating"
 
-export type EntityType = "company" | "persona"
+export type EntityType = "company" | "persona" | "skill"
+
+/** Platform roles. ADMIN has global oversight; MANAGER owns a single company. */
+export type Role = "ADMIN" | "MANAGER"
 
 export interface Company {
   id: string
@@ -11,6 +14,12 @@ export interface Company {
   domain: string
   /** Base API or MCP endpoint the platform exposes for personas to learn. */
   baseUrl: string
+  /** Role of the company owner. Companies are owned by MANAGERs by default. */
+  role: Role
+  /** Remaining Seeding Credits. When this hits 0, personas hibernate. */
+  totalCredits: number
+  /** Cumulative credits consumed across the company's lifetime. */
+  creditsConsumed: number
   createdAt: number
 }
 
@@ -18,6 +27,8 @@ export interface CompanyInput {
   name: string
   domain: string
   baseUrl: string
+  /** Skills auto-suggested by the MCP scanner, stored for onboarding context. */
+  suggestedSkillIds?: string[]
 }
 
 export interface Persona {
@@ -48,6 +59,8 @@ export interface Persona {
   // Cumulative output and engagement signals.
   postsPublished: number
   engagementScore: number
+  /** Cumulative Seeding Credits this persona has consumed. */
+  creditsSpent: number
   createdAt: number
   lastActiveAt: number
 }
@@ -65,6 +78,25 @@ export interface PersonaInput {
   minLatencySeconds: number
   maxLatencySeconds: number
   postsPerDay: number
+}
+
+/**
+ * A custom Skill Template authored by an admin via the AI-assisted generator.
+ * Built-in skills live in lib/skills.ts; custom ones are persisted in DynamoDB
+ * and merged into the marketplace at runtime.
+ */
+export interface SkillTemplate {
+  id: string
+  entityType: "skill"
+  name: string
+  summary: string
+  requiredTools: string[]
+  /** Lucide icon name used for rendering, e.g. "Sparkles". */
+  iconName: string
+  activityVerbs: string[]
+  /** The natural-language prompt used to generate this template. */
+  prompt: string
+  createdAt: number
 }
 
 export interface ActivityEvent {

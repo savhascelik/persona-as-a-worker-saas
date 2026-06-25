@@ -1,5 +1,13 @@
 import type { ActivityEvent, Persona, PersonaStatus } from "./types"
 import { getSkill, SKILL_MAP } from "./skills"
+import { CREDIT_COST } from "./billing"
+
+/** The outcome of a single persona simulation tick. */
+export interface TickResult {
+  updates: Partial<Persona>
+  /** Seeding Credits consumed by the action taken on this tick. */
+  cost: number
+}
 
 /** Picks the skill a persona is exercising on a given tick (deterministic-ish). */
 export function pickActiveSkill(persona: Persona, seed = Math.random()): string | undefined {
@@ -27,7 +35,7 @@ export function composeActivity(persona: Persona, skillId: string, seed = Math.r
 export function buildActivityFeed(personas: Persona[], now: Date = new Date(), limit = 12): ActivityEvent[] {
   const events: ActivityEvent[] = []
   for (const persona of personas) {
-    if (persona.status === "offline") continue
+    if (persona.status === "offline" || persona.status === "hibernating") continue
     const skillId = persona.currentSkillId ?? pickActiveSkill(persona)
     if (!skillId || !SKILL_MAP[skillId]) continue
     const skill = SKILL_MAP[skillId]
@@ -80,15 +88,32 @@ export function isWithinWorkingHours(persona: Persona, now: Date = new Date()): 
 /**
  * Computes the next persona state based on the current time. This is the core
  * loop invoked by the cron webhook. Personas only produce output during their
- * working hours, with output throttled to their posts-per-day budget.
+ * working hours, with output throttled to their posts-per-day budget. Every
+ * in-hours action consumes Seeding Credits; when the owning company is out of
+ * credits, the persona is parked in Hibernation and takes no action.
  */
-export function tickPersona(persona: Persona, now: Date = new Date()): Partial<Persona> {
+export function tickPersona(
+  persona: Persona,
+  opts: { now?: Date; hasCredits?: boolean } = {},
+): TickResult {
+  const now = opts.now ?? new Date()
+  const hasCredits = opts.hasCredits ?? true
+
   const working = isWithinWorkingHours(persona, now)
 
   if (!working) {
     return {
-      status: "offline" as PersonaStatus,
-      currentSkillId: undefined,
+      updates: { status: "offline" as PersonaStatus, currentSkillId: undefined },
+      cost: 0,
+    }
+  }
+
+  // The seeding economy: no credits means the persona hibernates instead of
+  // acting, regardless of its schedule.
+  if (!hasCredits) {
+    return {
+      updates: { status: "hibernating" as PersonaStatus, currentSkillId: undefined },
+      cost: 0,
     }
   }
 
@@ -106,18 +131,26 @@ export function tickPersona(persona: Persona, now: Date = new Date()): Partial<P
     const depth = (persona.minLatencySeconds + persona.maxLatencySeconds) / 2
     const engagementGain = Math.round(4 + depth / 60 + Math.random() * 12)
     return {
-      status: "active" as PersonaStatus,
-      currentSkillId,
-      postsPublished: persona.postsPublished + 1,
-      engagementScore: persona.engagementScore + engagementGain,
-      lastActiveAt: now.getTime(),
+      updates: {
+        status: "active" as PersonaStatus,
+        currentSkillId,
+        postsPublished: persona.postsPublished + 1,
+        engagementScore: persona.engagementScore + engagementGain,
+        creditsSpent: (persona.creditsSpent ?? 0) + CREDIT_COST.post,
+        lastActiveAt: now.getTime(),
+      },
+      cost: CREDIT_COST.post,
     }
   }
 
   return {
-    status: "idle" as PersonaStatus,
-    currentSkillId,
-    lastActiveAt: now.getTime(),
+    updates: {
+      status: "idle" as PersonaStatus,
+      currentSkillId,
+      creditsSpent: (persona.creditsSpent ?? 0) + CREDIT_COST.tick,
+      lastActiveAt: now.getTime(),
+    },
+    cost: CREDIT_COST.tick,
   }
 }
 

@@ -1,16 +1,16 @@
 "use client"
 
-import Link from "next/link"
 import { useMemo, useState, useTransition } from "react"
-import { ArrowLeft, Building2, Clock, Hexagon, Pencil, Plus, Timer, Trash2, TriangleAlert, Users } from "lucide-react"
+import { Building2, Clock, Moon, Pencil, Plus, Timer, Trash2, TriangleAlert, Users } from "lucide-react"
 import { useI18n } from "@/components/i18n-provider"
-import { LanguageToggle, ThemeToggle } from "@/components/controls"
+import { useSession } from "@/components/session-provider"
 import { StatusBadge } from "./status-badge"
 import { PersonaWizard } from "./persona-wizard"
 import { ConnectPlatformForm } from "./connect-platform-form"
 import { ActivityFeed } from "./activity-feed"
+import { DashboardHeader } from "./dashboard-header"
 import { deletePersonaAction } from "@/app/actions"
-import { SKILL_MAP } from "@/lib/skills"
+import { useSkills } from "@/components/skills-provider"
 import type { Company, Persona } from "@/lib/types"
 
 function pad(n: number) {
@@ -27,16 +27,22 @@ export function DashboardClient({
   dbError?: string | null
 }) {
   const { t } = useI18n()
+  const { skillMap } = useSkills()
+  const { activeCompanyId, setActiveCompanyId } = useSession()
   const [wizardOpen, setWizardOpen] = useState(false)
   const [connectOpen, setConnectOpen] = useState(false)
   const [editing, setEditing] = useState<Persona | undefined>(undefined)
-  const [activeCompanyId, setActiveCompanyId] = useState<string | null>(null)
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
   const visiblePersonas = useMemo(
     () => (activeCompanyId ? personas.filter((p) => p.companyId === activeCompanyId) : personas),
     [personas, activeCompanyId],
+  )
+
+  const activeCompany = useMemo(
+    () => (activeCompanyId ? companies.find((c) => c.id === activeCompanyId) : undefined),
+    [companies, activeCompanyId],
   )
 
   const stats = useMemo(() => {
@@ -70,35 +76,19 @@ export function DashboardClient({
   }
 
   const noCompanies = companies.length === 0
+  const hibernating = activeCompany ? activeCompany.totalCredits <= 0 : false
 
   return (
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
-          <div className="flex items-center gap-3">
-            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-foreground text-background">
-              <Hexagon className="h-4 w-4" />
-            </span>
-            <Link
-              href="/"
-              className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              {t.dashboard.backToSite}
-            </Link>
-          </div>
-          <div className="flex items-center gap-2">
-            <LanguageToggle />
-            <ThemeToggle />
-          </div>
-        </div>
-      </header>
+      <DashboardHeader companies={companies} />
 
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-6 py-10 lg:grid-cols-[260px_1fr]">
         {/* Sidebar: tenant / company switcher */}
         <aside className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.tenant.workspace}</span>
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {t.tenant.workspace}
+            </span>
           </div>
 
           {/* Mobile dropdown */}
@@ -131,6 +121,7 @@ export function DashboardClient({
                 hint={c.domain}
                 count={countByCompany.get(c.id) ?? 0}
                 active={activeCompanyId === c.id}
+                depleted={c.totalCredits <= 0}
                 onClick={() => setActiveCompanyId(c.id)}
               />
             ))}
@@ -172,6 +163,13 @@ export function DashboardClient({
             <StatCard icon={Pencil} label={t.dashboard.statPosts} value={stats.posts} />
             <StatCard icon={Timer} label={t.dashboard.statEngagement} value={stats.engagement} />
           </div>
+
+          {hibernating && (
+            <div className="mt-8 flex items-start gap-3 rounded-xl border border-sky-500/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-600 dark:text-sky-400">
+              <Moon className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>{t.credits.hibernationNote}</p>
+            </div>
+          )}
 
           {dbError && (
             <div className="mt-8 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
@@ -231,7 +229,7 @@ export function DashboardClient({
                                       key={id}
                                       className="inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
                                     >
-                                      {SKILL_MAP[id]?.name ?? id}
+                                      {skillMap[id]?.name ?? id}
                                     </span>
                                   ))
                                 ) : (
@@ -309,12 +307,14 @@ function CompanyItem({
   hint,
   count,
   active,
+  depleted,
   onClick,
 }: {
   label: string
   hint?: string
   count: number
   active: boolean
+  depleted?: boolean
   onClick: () => void
 }) {
   return (
@@ -327,7 +327,10 @@ function CompanyItem({
       }`}
     >
       <span className="min-w-0">
-        <span className="block truncate font-medium">{label}</span>
+        <span className="flex items-center gap-1.5">
+          {depleted && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden />}
+          <span className="block truncate font-medium">{label}</span>
+        </span>
         {hint && <span className="block truncate text-xs text-muted-foreground">{hint}</span>}
       </span>
       <span className="shrink-0 rounded-full border border-border px-1.5 text-[11px] tabular-nums text-muted-foreground">

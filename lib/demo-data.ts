@@ -2,16 +2,47 @@ import type { Company, Persona } from "./types"
 
 /**
  * Seed data used only when DynamoDB is unreachable (e.g. local preview without
- * synced credentials). It lets the multi-tenant UI, Skill Marketplace, and Live
- * Activity Feed render meaningfully. In the deployed environment the real table
- * is the source of truth and this is never used.
+ * synced credentials). It lets the multi-tenant UI, Skill Marketplace, Live
+ * Activity Feed, credit economy, and admin charts render meaningfully. In the
+ * deployed environment the real table is the source of truth and this is unused.
  */
 const now = Date.now()
 const HOUR = 3600_000
 
 export const DEMO_COMPANIES: Company[] = [
-  { id: "demo-acme", entityType: "company", name: "Acme Analytics", domain: "acme.com", baseUrl: "https://api.acme.com/mcp", createdAt: now - 40 * HOUR },
-  { id: "demo-orbit", entityType: "company", name: "Orbit Social", domain: "orbit.so", baseUrl: "https://orbit.so/openapi.json", createdAt: now - 20 * HOUR },
+  {
+    id: "demo-acme",
+    entityType: "company",
+    name: "Acme Analytics",
+    domain: "acme.com",
+    baseUrl: "https://api.acme.com/mcp",
+    role: "MANAGER",
+    totalCredits: 3820,
+    creditsConsumed: 1180,
+    createdAt: now - 40 * HOUR,
+  },
+  {
+    id: "demo-orbit",
+    entityType: "company",
+    name: "Orbit Social",
+    domain: "orbit.so",
+    baseUrl: "https://orbit.so/openapi.json",
+    role: "MANAGER",
+    totalCredits: 640,
+    creditsConsumed: 4360,
+    createdAt: now - 20 * HOUR,
+  },
+  {
+    id: "demo-fathom",
+    entityType: "company",
+    name: "Fathom Labs",
+    domain: "fathom.dev",
+    baseUrl: "https://fathom.dev/.well-known/mcp",
+    role: "MANAGER",
+    totalCredits: 0,
+    creditsConsumed: 2100,
+    createdAt: now - 12 * HOUR,
+  },
 ]
 
 export const DEMO_PERSONAS: Persona[] = [
@@ -34,6 +65,7 @@ export const DEMO_PERSONAS: Persona[] = [
     postsPerDay: 2,
     postsPublished: 7,
     engagementScore: 142,
+    creditsSpent: 620,
     createdAt: now - 38 * HOUR,
     lastActiveAt: now - 3 * 60_000,
   },
@@ -56,6 +88,7 @@ export const DEMO_PERSONAS: Persona[] = [
     postsPerDay: 3,
     postsPublished: 11,
     engagementScore: 205,
+    creditsSpent: 560,
     createdAt: now - 30 * HOUR,
     lastActiveAt: now - 9 * 60_000,
   },
@@ -78,7 +111,54 @@ export const DEMO_PERSONAS: Persona[] = [
     postsPerDay: 2,
     postsPublished: 4,
     engagementScore: 88,
+    creditsSpent: 2380,
     createdAt: now - 18 * HOUR,
     lastActiveAt: now - 60_000,
+  },
+  {
+    id: "demo-priya",
+    entityType: "persona",
+    companyId: "demo-orbit",
+    name: "Priya Nair",
+    role: "Growth Analyst",
+    platform: "Orbit Social",
+    mcpUrl: "https://orbit.so/openapi.json",
+    skillIds: ["data-analyst", "trend-scout"],
+    currentSkillId: "trend-scout",
+    status: "active",
+    timezone: "Asia/Kolkata",
+    workStartHour: 10,
+    workEndHour: 19,
+    minLatencySeconds: 40,
+    maxLatencySeconds: 220,
+    postsPerDay: 2,
+    postsPublished: 9,
+    engagementScore: 176,
+    creditsSpent: 1980,
+    createdAt: now - 16 * HOUR,
+    lastActiveAt: now - 2 * 60_000,
+  },
+  {
+    id: "demo-tom",
+    entityType: "persona",
+    companyId: "demo-fathom",
+    name: "Tom Eriksson",
+    role: "Developer Advocate",
+    platform: "Fathom Labs",
+    mcpUrl: "https://fathom.dev/.well-known/mcp",
+    skillIds: ["content-creator", "social-engager"],
+    currentSkillId: undefined,
+    status: "hibernating",
+    timezone: "Europe/Stockholm",
+    workStartHour: 9,
+    workEndHour: 18,
+    minLatencySeconds: 50,
+    maxLatencySeconds: 320,
+    postsPerDay: 2,
+    postsPublished: 6,
+    engagementScore: 119,
+    creditsSpent: 2100,
+    createdAt: now - 11 * HOUR,
+    lastActiveAt: now - 90 * 60_000,
   },
 ]

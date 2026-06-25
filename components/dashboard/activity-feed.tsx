@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Activity } from "lucide-react"
 import { useI18n } from "@/components/i18n-provider"
-import { getSkill, SKILL_MAP } from "@/lib/skills"
+import { useSkills } from "@/components/skills-provider"
 import type { Persona } from "@/lib/types"
 
 interface FeedLine {
@@ -16,6 +16,7 @@ interface FeedLine {
 
 export function ActivityFeed({ personas }: { personas: Persona[] }) {
   const { t } = useI18n()
+  const { skillMap } = useSkills()
   // `tick` advances on an interval to rotate the live lines.
   const [tick, setTick] = useState(0)
 
@@ -26,14 +27,14 @@ export function ActivityFeed({ personas }: { personas: Persona[] }) {
 
   const lines = useMemo<FeedLine[]>(() => {
     const active = personas.filter(
-      (p) => p.status !== "offline" && p.skillIds && p.skillIds.length > 0,
+      (p) => p.status !== "offline" && p.status !== "hibernating" && p.skillIds && p.skillIds.length > 0,
     )
     return active
       .map((p, i) => {
-        const skillId = p.currentSkillId && SKILL_MAP[p.currentSkillId]
+        const skillId = p.currentSkillId && skillMap[p.currentSkillId]
           ? p.currentSkillId
           : p.skillIds[(tick + i) % p.skillIds.length]
-        const skill = getSkill(skillId)
+        const skill = skillMap[skillId]
         if (!skill) return null
         const verb = skill.activityVerbs[(tick + i) % skill.activityVerbs.length]
         const firstName = p.name.split(" ")[0] || p.name
