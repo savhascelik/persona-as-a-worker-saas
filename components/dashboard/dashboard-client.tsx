@@ -10,7 +10,7 @@ import { PersonaWizard } from "./persona-wizard"
 import { ConnectPlatformForm } from "./connect-platform-form"
 import { ActivityFeed } from "./activity-feed"
 import { DashboardHeader } from "./dashboard-header"
-import { deletePersonaAction } from "@/app/actions"
+import { deletePersonaAction } from "@/app/actions/persona-actions"
 import { useSkills } from "@/components/skills-provider"
 import type { Company, Persona } from "@/lib/types"
 

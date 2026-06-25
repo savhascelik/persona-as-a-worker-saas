@@ -78,7 +78,7 @@ export function BillingClient({ companies }: { companies: Company[] }) {
 
       {!company ? (
         <p className="mt-8 rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-          {t.billing.selectCompanyFirst}
+          {companies.length === 0 ? t.billing.noCompanies : t.billing.selectCompanyFirst}
         </p>
       ) : (
         <>

@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import type { ReactNode } from "react"
+import { useUser } from "@clerk/nextjs"
 import type { Role } from "@/lib/types"
 
 interface SessionUser {
@@ -12,50 +13,28 @@ interface SessionUser {
 
 interface SessionState {
   user: SessionUser
+  /** True when the signed-in Clerk user has `publicMetadata.role === "admin"`. */
   isAdmin: boolean
-  /** When true, an admin is viewing the global (cross-company) surface. */
-  globalView: boolean
-  setGlobalView: (v: boolean) => void
+  /** Whether Clerk has finished loading the user. */
+  isLoaded: boolean
   /** Company currently in focus across dashboard / billing. null = all. */
   activeCompanyId: string | null
   setActiveCompanyId: (id: string | null) => void
 }
 
-/**
- * Mock session. In a real deployment this would be hydrated from an auth
- * provider. The demo user holds ADMIN permissions so the Super Admin toggle and
- * global views are demonstrable; flip `role` to "MANAGER" to see the scoped UX.
- */
-const DEMO_USER: SessionUser = {
-  name: "Avery Chen",
-  email: "avery@personaworker.io",
-  role: "ADMIN",
-}
-
 const SessionContext = createContext<SessionState | null>(null)
 
-const GLOBAL_KEY = "paaw-global-view"
 const COMPANY_KEY = "paaw-active-company"
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [globalView, setGlobalViewState] = useState(false)
+  const { user, isLoaded } = useUser()
   const [activeCompanyId, setActiveCompanyIdState] = useState<string | null>(null)
 
-  // Hydrate persisted selections after mount.
+  // Hydrate persisted company selection after mount.
   useEffect(() => {
     try {
-      setGlobalViewState(localStorage.getItem(GLOBAL_KEY) === "1")
       const stored = localStorage.getItem(COMPANY_KEY)
       if (stored) setActiveCompanyIdState(stored)
-    } catch {
-      /* ignore */
-    }
-  }, [])
-
-  const setGlobalView = useCallback((v: boolean) => {
-    setGlobalViewState(v)
-    try {
-      localStorage.setItem(GLOBAL_KEY, v ? "1" : "0")
     } catch {
       /* ignore */
     }
@@ -71,16 +50,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // The role lives in Clerk's public metadata (set it to "admin" in the
+  // Clerk dashboard to unlock the Admin Console).
+  const isAdmin = user?.publicMetadata?.role === "admin"
+
   const value = useMemo<SessionState>(
     () => ({
-      user: DEMO_USER,
-      isAdmin: DEMO_USER.role === "ADMIN",
-      globalView,
-      setGlobalView,
+      user: {
+        name: user?.fullName || user?.firstName || user?.username || "Operator",
+        email: user?.primaryEmailAddress?.emailAddress ?? "",
+        role: isAdmin ? "ADMIN" : "MANAGER",
+      },
+      isAdmin,
+      isLoaded,
       activeCompanyId,
       setActiveCompanyId,
     }),
-    [globalView, setGlobalView, activeCompanyId, setActiveCompanyId],
+    [user, isAdmin, isLoaded, activeCompanyId, setActiveCompanyId],
   )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useMemo } from "react"
 import { Hexagon, LayoutDashboard, CreditCard, ShieldCheck } from "lucide-react"
+import { UserButton } from "@clerk/nextjs"
 import { useI18n } from "@/components/i18n-provider"
 import { useSession } from "@/components/session-provider"
 import { LanguageToggle, ThemeToggle } from "@/components/controls"
@@ -13,20 +14,18 @@ import type { Company } from "@/lib/types"
 export function DashboardHeader({ companies }: { companies: Company[] }) {
   const { t } = useI18n()
   const pathname = usePathname()
-  const { isAdmin, globalView, setGlobalView, activeCompanyId } = useSession()
+  const { isAdmin, activeCompanyId } = useSession()
 
   const gauge = useMemo(() => {
     const active = activeCompanyId ? companies.find((c) => c.id === activeCompanyId) : undefined
-    if (active && !(globalView && !activeCompanyId)) {
-      return { balance: active.totalCredits, consumed: active.creditsConsumed, label: undefined }
+    if (active) {
+      return { balance: active.totalCredits ?? 0, consumed: active.creditsConsumed ?? 0, label: undefined }
     }
     // Aggregate across all companies.
     const balance = companies.reduce((s, c) => s + (c.totalCredits ?? 0), 0)
     const consumed = companies.reduce((s, c) => s + (c.creditsConsumed ?? 0), 0)
     return { balance, consumed, label: t.credits.aggregate }
-  }, [companies, activeCompanyId, globalView, t])
-
-  const showAdmin = isAdmin && globalView
+  }, [companies, activeCompanyId, t])
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/70 backdrop-blur-xl">
@@ -46,7 +45,7 @@ export function DashboardHeader({ companies }: { companies: Company[] }) {
             <NavLink href="/dashboard/billing" active={pathname === "/dashboard/billing"} icon={CreditCard}>
               {t.session.profileBilling}
             </NavLink>
-            {showAdmin && (
+            {isAdmin && (
               <NavLink href="/dashboard/admin" active={pathname === "/dashboard/admin"} icon={ShieldCheck}>
                 {t.session.adminConsole}
               </NavLink>
@@ -58,34 +57,18 @@ export function DashboardHeader({ companies }: { companies: Company[] }) {
           <CreditGauge balance={gauge.balance} consumed={gauge.consumed} label={gauge.label} />
 
           {isAdmin && (
-            <button
-              type="button"
-              role="switch"
-              aria-checked={globalView}
-              onClick={() => setGlobalView(!globalView)}
-              className={`hidden items-center gap-2 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors sm:inline-flex ${
-                globalView
-                  ? "border-accent/40 bg-accent/10 text-accent"
-                  : "border-border bg-background/40 text-muted-foreground hover:text-foreground"
-              }`}
+            <span
+              className="hidden items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-2.5 py-1.5 text-xs font-medium text-accent sm:inline-flex"
               title={t.session.superAdmin}
             >
               <ShieldCheck className="h-3.5 w-3.5" />
-              <span className="hidden lg:inline">{t.session.superAdmin}</span>
-              <span
-                className={`relative h-4 w-7 rounded-full transition-colors ${globalView ? "bg-accent" : "bg-muted"}`}
-              >
-                <span
-                  className={`absolute top-0.5 h-3 w-3 rounded-full bg-background transition-transform ${
-                    globalView ? "translate-x-3.5" : "translate-x-0.5"
-                  }`}
-                />
-              </span>
-            </button>
+              <span className="hidden lg:inline">{t.session.admin}</span>
+            </span>
           )}
 
           <LanguageToggle />
           <ThemeToggle />
+          <UserButton appearance={{ elements: { avatarBox: "h-8 w-8" } }} />
         </div>
       </div>
     </header>
