@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { Check, Loader2, Radar, Wrench } from "lucide-react"
+import { Check, Loader2, Radar, Wrench, Plus, Trash } from "lucide-react"
 import { useI18n } from "@/components/i18n-provider"
 import { useSkills } from "@/components/skills-provider"
 import { createCompanyAction, scanEndpointAction } from "@/app/actions"
@@ -20,17 +20,19 @@ export function ConnectPlatformForm({
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  const [baseUrl, setBaseUrl] = useState("")
+  const [mcpUrls, setMcpUrls] = useState<string[]>([""])
   const [scanning, setScanning] = useState(false)
   const [scan, setScan] = useState<{ tools: string[]; suggested: string[]; isSimulated?: boolean } | null>(null)
 
+  const combinedUrl = mcpUrls.map((u) => u.trim()).filter(Boolean).join(",")
+
   async function runScan() {
-    if (!baseUrl.trim()) return
+    if (!combinedUrl) return
     setError(null)
     setScan(null)
     setScanning(true)
     try {
-      const result = await scanEndpointAction(baseUrl)
+      const result = await scanEndpointAction(combinedUrl)
       if (result.ok) {
         setScan({ tools: result.tools, suggested: result.compatibleSkillIds, isSimulated: result.isSimulated })
       } else {
@@ -45,7 +47,7 @@ export function ConnectPlatformForm({
 
   function action(formData: FormData) {
     setError(null)
-    formData.set("baseUrl", baseUrl)
+    formData.set("baseUrl", combinedUrl)
     formData.delete("suggestedSkillIds")
     scan?.suggested.forEach((id) => formData.append("suggestedSkillIds", id))
     formData.delete("discoveredTools")
@@ -71,32 +73,65 @@ export function ConnectPlatformForm({
           <input name="domain" required placeholder={t.connect.domainPlaceholder} className={inputClass} />
         </Field>
         <Field label={t.connect.baseUrl}>
-          <div>
-            <div className="flex gap-2">
-              <input
-                name="baseUrl"
-                type="text"
-                required
-                value={baseUrl}
-                onChange={(e) => {
-                  setBaseUrl(e.target.value)
+          <div className="space-y-3">
+            {mcpUrls.map((url, index) => (
+              <div key={index} className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  required
+                  value={url}
+                  onChange={(e) => {
+                    const next = [...mcpUrls]
+                    next[index] = e.target.value
+                    setMcpUrls(next)
+                    setScan(null)
+                  }}
+                  placeholder={index === 0 ? "https://api.acme.com/mcp" : `e.g. https://slack.acme.com/mcp (Server ${index + 1})`}
+                  className={`${inputClass} font-mono text-xs`}
+                />
+                {mcpUrls.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = mcpUrls.filter((_, i) => i !== index)
+                      setMcpUrls(next)
+                      setScan(null)
+                    }}
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-destructive/20 bg-destructive/5 text-destructive transition-colors hover:bg-destructive/15"
+                    title="Remove Server"
+                  >
+                    <Trash className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+
+            <div className="flex gap-2 justify-between items-center pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setMcpUrls([...mcpUrls, ""])
                   setScan(null)
                 }}
-                placeholder="https://api.acme.com/mcp, https://slack.acme.com/mcp"
-                className={`${inputClass} font-mono text-xs`}
-              />
+                className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-accent/40 bg-accent/5 px-3 py-1.5 text-xs font-semibold text-accent transition-colors hover:bg-accent/10"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add MCP Server
+              </button>
+
               <button
                 type="button"
                 onClick={runScan}
-                disabled={!baseUrl.trim() || scanning}
-                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-accent/40 bg-accent/10 px-3 text-sm font-medium text-accent transition-colors hover:bg-accent/15 disabled:opacity-50"
+                disabled={!combinedUrl || scanning}
+                className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md border border-accent bg-accent text-background px-4 text-xs font-bold transition-opacity hover:opacity-95 disabled:opacity-50"
               >
-                {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
-                <span className="hidden sm:inline">{scanning ? t.scanner.scanning : scan ? t.scanner.rescan : t.scanner.scan}</span>
+                {scanning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />}
+                <span>{scanning ? t.scanner.scanning : scan ? t.scanner.rescan : t.scanner.scan}</span>
               </button>
             </div>
-            <p className="text-[10px] text-muted-foreground/75 mt-1.5 leading-relaxed">
-              💡 <strong>Cross-MCP Orchestration:</strong> You can enter multiple comma-separated endpoints. Tools will be namespaced, enabling Personas to orchestrate cross-service workflows dynamically.
+
+            <p className="text-[10px] text-muted-foreground/75 mt-2 leading-relaxed">
+              💡 <strong>Cross-MCP Orchestration:</strong> Add multiple independent MCP endpoints. The scanner will automatically namespace and discover compatible multi-service skills.
             </p>
           </div>
         </Field>
@@ -115,7 +150,7 @@ export function ConnectPlatformForm({
           </div>
 
           {!scan && !scanning && (
-            <p className="mt-2 text-xs text-muted-foreground">{baseUrl.trim() ? t.scanner.idle : t.scanner.needUrl}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{combinedUrl ? t.scanner.idle : t.scanner.needUrl}</p>
           )}
 
           {scanning && (
