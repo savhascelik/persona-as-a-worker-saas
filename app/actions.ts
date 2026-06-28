@@ -9,13 +9,16 @@ import {
   createCompany,
   createSkillTemplate,
   deleteSkillTemplate,
+  updateSkillTemplate,
   getAllCompanies,
   getAllSkillTemplates,
   getCompanyById,
+  getAllPersonas,
+  getActivitiesByCompany,
 } from "@/lib/db"
 import { getPackage } from "@/lib/billing"
 import { SKILL_ICON_NAMES } from "@/lib/skill-icons"
-import type { Company, CompanyInput, SkillTemplate } from "@/lib/types"
+import type { Company, CompanyInput, SkillTemplate, ActivityEvent } from "@/lib/types"
 import { scanRealEndpoint } from "@/lib/mcp-scanner-server"
 
 export type CompanyResult = { ok: true; company: Company } | { ok: false; error: string }
@@ -168,12 +171,48 @@ export async function saveSkillTemplateAction(
     source: draft.source ?? "manual",
   })
   revalidatePath("/dashboard")
+  revalidatePath("/dashboard/skills")
   revalidatePath("/dashboard/admin")
   return { ok: true, skill }
 }
 
+export async function updateSkillTemplateAction(
+  id: string,
+  draft: Partial<Omit<SkillTemplate, "id" | "entityType" | "createdAt">>
+): Promise<SkillResult> {
+  if (draft.name && !draft.name.trim()) {
+    return { ok: false, error: "Name cannot be empty." }
+  }
+  if (draft.summary && !draft.summary.trim()) {
+    return { ok: false, error: "Summary cannot be empty." }
+  }
+  if (draft.requiredTools && !draft.requiredTools.length) {
+    return { ok: false, error: "At least one MCP tool is required." }
+  }
+
+  const updated = await updateSkillTemplate(id, {
+    ...(draft.name ? { name: draft.name.trim() } : {}),
+    ...(draft.summary ? { summary: draft.summary.trim() } : {}),
+    ...(draft.requiredTools ? { requiredTools: draft.requiredTools } : {}),
+    ...(draft.activityVerbs ? { activityVerbs: draft.activityVerbs } : {}),
+    ...(draft.iconName ? { iconName: draft.iconName } : {}),
+    ...(draft.source ? { source: draft.source } : {}),
+  })
+
+  if (!updated) {
+    return { ok: false, error: "Skill not found or no updates specified." }
+  }
+
+  revalidatePath("/dashboard")
+  revalidatePath("/dashboard/skills")
+  revalidatePath("/dashboard/admin")
+  return { ok: true, skill: updated }
+}
+
 export async function deleteSkillTemplateAction(id: string): Promise<SkillResult | { ok: true }> {
   await deleteSkillTemplate(id)
+  revalidatePath("/dashboard")
+  revalidatePath("/dashboard/skills")
   revalidatePath("/dashboard/admin")
   return { ok: true }
 }
@@ -187,15 +226,65 @@ export async function getCompanyAction(id: string): Promise<Company | null> {
 }
 
 export type ScanActionResponse = 
-  | { ok: true; tools: string[]; compatibleSkillIds: string[] }
+  | { ok: true; tools: string[]; compatibleSkillIds: string[]; isSimulated?: boolean }
   | { ok: false; error: string }
 
 export async function scanEndpointAction(url: string): Promise<ScanActionResponse> {
   try {
     const result = await scanRealEndpoint(url)
-    return { ok: true, tools: result.tools, compatibleSkillIds: result.compatibleSkillIds }
+    return { ok: true, tools: result.tools, compatibleSkillIds: result.compatibleSkillIds, isSimulated: false }
   } catch (error) {
     console.error("[Scanner Action Error]:", error)
-    return { ok: false, error: error instanceof Error ? error.message : "Failed to scan endpoint." }
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Failed to scan endpoint."
+    }
   }
 }
+
+export async function triggerCompanyPersonasAction(
+  companyId: string
+): Promise<{ ok: boolean; results: { id: string; ok: boolean; actionTaken?: string; error?: string }[] }> {
+  try {
+    const [company, personas] = await Promise.all([
+      getCompanyById(companyId),
+      getAllPersonas(),
+    ])
+
+    if (!company) {
+      throw new Error("Company not found")
+    }
+
+    const companyPersonas = personas.filter((p) => p.companyId === companyId && p.status !== "offline" && p.status !== "hibernating")
+    if (companyPersonas.length === 0) {
+      return { ok: true, results: [] }
+    }
+
+    const { executePersonaAgent } = await import("@/lib/agent-runner")
+    const results = await Promise.all(
+      companyPersonas.map(async (persona) => {
+        const res = await executePersonaAgent(persona, company, new Date())
+        return { id: persona.id, ...res }
+      })
+    )
+
+    revalidatePath("/dashboard")
+    return { ok: true, results }
+  } catch (err: any) {
+    console.error("[Trigger Company Personas Action Error]:", err)
+    return { ok: false, results: [] }
+  }
+}
+
+export async function getCompanyActivitiesAction(
+  companyId: string,
+  limit = 20
+): Promise<ActivityEvent[]> {
+  try {
+    return await getActivitiesByCompany(companyId, limit)
+  } catch (err) {
+    console.error("[Get Company Activities Action Error]:", err)
+    return []
+  }
+}
+

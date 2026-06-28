@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useMemo } from "react"
-import { Hexagon, LayoutDashboard, CreditCard, ShieldCheck } from "lucide-react"
+import { Hexagon, LayoutDashboard, CreditCard, ShieldCheck, Workflow } from "lucide-react"
 import { UserButton } from "@clerk/nextjs"
 import { useI18n } from "@/components/i18n-provider"
 import { useSession } from "@/components/session-provider"
@@ -41,6 +41,9 @@ export function DashboardHeader({ companies }: { companies: Company[] }) {
           <nav className="hidden items-center gap-1 md:flex">
             <NavLink href="/dashboard" active={pathname === "/dashboard"} icon={LayoutDashboard}>
               {t.nav.dashboard}
+            </NavLink>
+            <NavLink href="/dashboard/skills" active={pathname === "/dashboard/skills" || pathname.startsWith("/dashboard/skills")} icon={Workflow}>
+              {t.nav.skills}
             </NavLink>
             <NavLink href="/dashboard/billing" active={pathname === "/dashboard/billing"} icon={CreditCard}>
               {t.session.profileBilling}

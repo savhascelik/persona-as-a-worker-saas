@@ -1,23 +1,17 @@
 import { NextResponse } from "next/server"
-import { deductCredits, getAllCompanies, getAllPersonas, updatePersona } from "@/lib/db"
-import { tickPersona } from "@/lib/simulation"
-import type { Company } from "@/lib/types"
+import { getAllCompanies, getAllPersonas } from "@/lib/db"
+import { executePersonaAgent } from "@/lib/agent-runner"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 /**
- * Webhook invoked by Vercel Cron. On each tick it advances every persona's
- * state: personas outside their working hours go offline, while those on the
- * clock may publish high-fidelity content and accrue engagement.
+ * Webhook invoked by Vercel Cron. On each tick, it executes actual AI agent loops
+ * (Gemini or OpenAI) for all registered personas across companies.
  *
- * Every in-hours action consumes Seeding Credits from the owning company. When
- * a company's balance is exhausted, its personas are parked in Hibernation and
- * no further credits are spent until the manager tops up.
- *
- * Vercel Cron requests are authenticated via the CRON_SECRET bearer token when
- * that env var is configured. If it is absent (e.g. local/preview), the handler
- * still runs so the simulation remains observable.
+ * Each persona checks its schedule and credit constraints. If active and funded,
+ * the agent evaluates the target platform via MCP tools and determines a high-fidelity
+ * action to run, with complete multi-tenant scoping and credit deduction.
  */
 async function handle(request: Request) {
   const cronSecret = process.env.CRON_SECRET
@@ -31,40 +25,20 @@ async function handle(request: Request) {
   const now = new Date()
   const [personas, companies] = await Promise.all([getAllPersonas(), getAllCompanies()])
 
-  // Track a working balance per company so multiple personas draw down the
-  // same pool within a single tick.
-  const balances = new Map<string, number>()
-  for (const c of companies as Company[]) balances.set(c.id, c.totalCredits ?? 0)
-
-  let hibernated = 0
-  const spendByCompany = new Map<string, number>()
+  const companyMap = new Map(companies.map((c) => [c.id, c]))
 
   const results = await Promise.allSettled(
     personas.map(async (persona) => {
-      const balance = balances.get(persona.companyId) ?? 0
-      const hasCredits = balance > 0
-      const { updates, cost } = tickPersona(persona, { now, hasCredits })
-
-      // Reserve the spend against the in-memory balance so siblings see it.
-      if (cost > 0) {
-        balances.set(persona.companyId, balance - cost)
-        spendByCompany.set(persona.companyId, (spendByCompany.get(persona.companyId) ?? 0) + cost)
+      const company = companyMap.get(persona.companyId)
+      if (!company) {
+        throw new Error(`Company not found for persona ${persona.id}`)
       }
-      if (updates.status === "hibernating") hibernated += 1
-
-      await updatePersona(persona.id, updates)
-      return { id: persona.id, status: updates.status }
+      return executePersonaAgent(persona, company, now)
     }),
-  )
-
-  // Persist the aggregated credit consumption per company.
-  await Promise.allSettled(
-    [...spendByCompany.entries()].map(([companyId, amount]) => deductCredits(companyId, amount)),
   )
 
   const updated = results.filter((r) => r.status === "fulfilled").length
   const failed = results.length - updated
-  const creditsConsumed = [...spendByCompany.values()].reduce((s, n) => s + n, 0)
 
   return NextResponse.json({
     ok: true,
@@ -72,8 +46,6 @@ async function handle(request: Request) {
     personas: personas.length,
     updated,
     failed,
-    hibernated,
-    creditsConsumed,
   })
 }
 

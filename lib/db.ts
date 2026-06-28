@@ -9,9 +9,10 @@ import {
 } from "@aws-sdk/lib-dynamodb"
 import { awsCredentialsProvider } from "@vercel/functions/oidc"
 import { STARTER_GRANT } from "./billing"
-import type { Company, CompanyInput, Persona, PersonaInput, SkillTemplate } from "./types"
+import type { Company, CompanyInput, Persona, PersonaInput, SkillTemplate, ActivityEvent } from "./types"
 import fs from "fs"
 import path from "path"
+import { nanoid } from "nanoid"
 
 export const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME
 
@@ -24,6 +25,7 @@ interface LocalDbData {
   companies: Company[]
   personas: Persona[]
   skills: SkillTemplate[]
+  activities?: ActivityEvent[]
 }
 
 function getLocalDb(): LocalDbData {
@@ -418,4 +420,108 @@ export async function deleteSkillTemplate(id: string): Promise<boolean> {
     }),
   )
   return true
+}
+
+export async function updateSkillTemplate(
+  id: string,
+  updates: Partial<Omit<SkillTemplate, "id" | "entityType" | "createdAt">>
+): Promise<SkillTemplate | null> {
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    const idx = db.skills.findIndex((s) => s.id === id)
+    if (idx === -1) return null
+    const p = db.skills[idx]
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === undefined) continue
+      ;(p as any)[key] = value
+    }
+    saveLocalDb(db)
+    return p
+  }
+
+  const expressionParts: string[] = []
+  const expressionAttributeNames: Record<string, string> = {}
+  const expressionAttributeValues: Record<string, unknown> = {}
+
+  for (const [key, value] of Object.entries(updates)) {
+    if (value === undefined) continue
+    expressionParts.push(`#${key} = :${key}`)
+    expressionAttributeNames[`#${key}`] = key
+    expressionAttributeValues[`:${key}`] = value
+  }
+
+  if (expressionParts.length === 0) {
+    return null
+  }
+
+  const result = await docClient.send(
+    new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: { [PK]: SKILL_PARTITION, [SK]: id },
+      UpdateExpression: `SET ${expressionParts.join(", ")}`,
+      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ReturnValues: "ALL_NEW",
+    }),
+  )
+
+  return (result.Attributes as SkillTemplate) || null
+}
+
+
+/* -------------------------------------------------------------------------- */
+/*  Activities (Persistent logs)                                               */
+/* -------------------------------------------------------------------------- */
+
+export async function createActivityEvent(event: Omit<ActivityEvent, "id" | "at">): Promise<ActivityEvent> {
+  const newEvent: ActivityEvent = {
+    id: `act_${nanoid(12)}`,
+    ...event,
+    at: Date.now(),
+  }
+
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    if (!db.activities) db.activities = []
+    db.activities.push(newEvent)
+    saveLocalDb(db)
+    return newEvent
+  }
+
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: { [PK]: "ACTIVITY", [SK]: newEvent.id, ...newEvent },
+    }),
+  )
+  return newEvent
+}
+
+export async function getActivitiesByCompany(companyId: string, limit = 20): Promise<ActivityEvent[]> {
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    const list = db.activities ?? []
+    const personas = db.personas.filter((p) => p.companyId === companyId)
+    const pIds = new Set(personas.map((p) => p.id))
+    return list
+      .filter((act: ActivityEvent) => pIds.has(act.personaId))
+      .sort((a: ActivityEvent, b: ActivityEvent) => b.at - a.at)
+      .slice(0, limit)
+  }
+
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: TABLE_NAME,
+      KeyConditionExpression: "#pk = :pk",
+      ExpressionAttributeNames: { "#pk": PK },
+      ExpressionAttributeValues: { ":pk": "ACTIVITY" },
+    }),
+  )
+  const list = (result.Items || []) as ActivityEvent[]
+  const personas = (await getAllPersonas()).filter((p) => p.companyId === companyId)
+  const pIds = new Set(personas.map((p) => p.id))
+  return list
+    .filter((act) => pIds.has(act.personaId))
+    .sort((a, b) => b.at - a.at)
+    .slice(0, limit)
 }

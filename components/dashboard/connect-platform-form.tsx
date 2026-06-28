@@ -22,7 +22,7 @@ export function ConnectPlatformForm({
 
   const [baseUrl, setBaseUrl] = useState("")
   const [scanning, setScanning] = useState(false)
-  const [scan, setScan] = useState<{ tools: string[]; suggested: string[] } | null>(null)
+  const [scan, setScan] = useState<{ tools: string[]; suggested: string[]; isSimulated?: boolean } | null>(null)
 
   async function runScan() {
     if (!baseUrl.trim()) return
@@ -32,7 +32,7 @@ export function ConnectPlatformForm({
     try {
       const result = await scanEndpointAction(baseUrl)
       if (result.ok) {
-        setScan({ tools: result.tools, suggested: result.compatibleSkillIds })
+        setScan({ tools: result.tools, suggested: result.compatibleSkillIds, isSimulated: result.isSimulated })
       } else {
         setError(result.error)
       }
@@ -102,9 +102,9 @@ export function ConnectPlatformForm({
             <Radar className="h-4 w-4 text-accent" />
             <span className="text-sm font-medium text-foreground">{t.scanner.title}</span>
             {scan && (
-              <span className="ml-auto inline-flex items-center gap-1 text-xs text-accent">
+              <span className={`ml-auto inline-flex items-center gap-1 text-xs ${scan.isSimulated ? "text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded px-1.5 py-0.5 text-[10px]" : "text-accent"}`}>
                 <Check className="h-3 w-3" />
-                {t.scanner.done}
+                {scan.isSimulated ? t.scanner.simulated : t.scanner.done}
               </span>
             )}
           </div>

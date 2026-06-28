@@ -286,7 +286,7 @@ export function DashboardClient({
             </div>
 
             {/* Live activity feed */}
-            <ActivityFeed personas={visiblePersonas} />
+            <ActivityFeed personas={visiblePersonas} companyId={activeCompanyId} />
           </div>
         </main>
       </div>

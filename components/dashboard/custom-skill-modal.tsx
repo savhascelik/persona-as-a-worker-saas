@@ -1,25 +1,40 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { saveSkillTemplateAction } from "@/app/actions"
+import { saveSkillTemplateAction, updateSkillTemplateAction } from "@/app/actions"
 import { Field, Modal, inputClass } from "./form-primitives"
 
 export function CustomSkillModal({
   discoveredTools,
   onClose,
   onSaved,
+  initialSkill,
+  mode = "create",
 }: {
   discoveredTools: string[]
   onClose: () => void
   onSaved: (id: string) => void
+  initialSkill?: {
+    id: string
+    name: string
+    summary: string
+    requiredTools: string[]
+    activityVerbs?: string[]
+  }
+  mode?: "create" | "edit" | "copy"
 }) {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  const [name, setName] = useState("")
-  const [summary, setSummary] = useState("")
-  const [selectedTools, setSelectedTools] = useState<string[]>([])
-  const [verbsStr, setVerbsStr] = useState("")
+  const [name, setName] = useState(() => {
+    if (!initialSkill) return ""
+    return mode === "copy" ? `${initialSkill.name} (Copy)` : initialSkill.name
+  })
+  const [summary, setSummary] = useState(initialSkill?.summary ?? "")
+  const [selectedTools, setSelectedTools] = useState<string[]>(initialSkill?.requiredTools ?? [])
+  const [verbsStr, setVerbsStr] = useState(() => {
+    return initialSkill?.activityVerbs?.join(", ") ?? ""
+  })
 
   function handleToolToggle(tool: string) {
     setSelectedTools((prev) =>
@@ -47,14 +62,24 @@ export function CustomSkillModal({
       .filter(Boolean)
 
     startTransition(async () => {
-      const res = await saveSkillTemplateAction({
-        name: name.trim(),
-        summary: summary.trim(),
-        requiredTools: tools,
-        activityVerbs: activityVerbs.length ? activityVerbs : ["seeding the platform"],
-        iconName: "Sparkles",
-        source: "manual",
-      })
+      let res
+      if (mode === "edit" && initialSkill) {
+        res = await updateSkillTemplateAction(initialSkill.id, {
+          name: name.trim(),
+          summary: summary.trim(),
+          requiredTools: tools,
+          activityVerbs: activityVerbs.length ? activityVerbs : ["seeding the platform"],
+        })
+      } else {
+        res = await saveSkillTemplateAction({
+          name: name.trim(),
+          summary: summary.trim(),
+          requiredTools: tools,
+          activityVerbs: activityVerbs.length ? activityVerbs : ["seeding the platform"],
+          iconName: "Sparkles",
+          source: "manual",
+        })
+      }
 
       if (res.ok) {
         onSaved(res.skill.id)
@@ -67,8 +92,14 @@ export function CustomSkillModal({
 
   return (
     <Modal
-      title="Create Custom Skill"
-      description="Bundle any subset of tools into a custom skill for your persona."
+      title={mode === "edit" ? "Edit Custom Skill" : mode === "copy" ? "Copy Custom Skill" : "Create Custom Skill"}
+      description={
+        mode === "edit"
+          ? "Update the parameters and required tools of this custom skill."
+          : mode === "copy"
+            ? "Create a new copy based on this custom skill template."
+            : "Bundle any subset of tools into a custom skill for your persona."
+      }
       onClose={onClose}
       closeLabel="Close"
     >
@@ -153,7 +184,7 @@ export function CustomSkillModal({
             disabled={isPending}
             className="inline-flex h-10 items-center rounded-md bg-foreground px-5 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-60"
           >
-            {isPending ? "Creating..." : "Create Skill"}
+            {isPending ? (mode === "edit" ? "Saving..." : "Creating...") : (mode === "edit" ? "Save Changes" : mode === "copy" ? "Create Copy" : "Create Skill")}
           </button>
         </div>
       </form>

@@ -14,6 +14,7 @@ const en = {
     features: "Features",
     manifesto: "Manifesto",
     dashboard: "Dashboard",
+    skills: "Skills",
     startSeeding: "Start Seeding",
   },
   hero: {
@@ -217,6 +218,7 @@ const en = {
     suggestedSkills: "Suggested skills",
     compatible: "compatible",
     done: "Scan complete",
+    simulated: "Simulated scan (Offline fallback)",
     note: "Suggested skills are pre-selected for personas you create on this platform.",
   },
   form: {
@@ -257,6 +259,7 @@ const es: Dict = {
     features: "Funciones",
     manifesto: "Manifiesto",
     dashboard: "Panel",
+    skills: "Habilidades",
     startSeeding: "Empezar a sembrar",
   },
   hero: {
@@ -461,6 +464,7 @@ const es: Dict = {
     suggestedSkills: "Habilidades sugeridas",
     compatible: "compatible",
     done: "Escaneo completo",
+    simulated: "Escaneo simulado (Respaldo offline)",
     note: "Las habilidades sugeridas se preseleccionan para las personas que crees en esta plataforma.",
   },
   form: {
