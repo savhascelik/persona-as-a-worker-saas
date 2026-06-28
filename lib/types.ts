@@ -22,6 +22,8 @@ export interface Company {
   creditsConsumed: number
   /** Skills the MCP scanner detected as compatible at onboarding. */
   suggestedSkillIds?: string[]
+  /** Tools discovered on the endpoint at onboarding. */
+  discoveredTools?: string[]
   createdAt: number
 }
 
@@ -31,6 +33,8 @@ export interface CompanyInput {
   baseUrl: string
   /** Skills auto-suggested by the MCP scanner, stored for onboarding context. */
   suggestedSkillIds?: string[]
+  /** Tools discovered on the endpoint at onboarding. */
+  discoveredTools?: string[]
 }
 
 export interface Persona {

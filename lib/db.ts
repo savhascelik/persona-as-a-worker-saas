@@ -132,6 +132,7 @@ export async function createCompany(id: string, input: CompanyInput): Promise<Co
     totalCredits: STARTER_GRANT,
     creditsConsumed: 0,
     suggestedSkillIds: input.suggestedSkillIds,
+    discoveredTools: input.discoveredTools,
     createdAt: Date.now(),
   }
 

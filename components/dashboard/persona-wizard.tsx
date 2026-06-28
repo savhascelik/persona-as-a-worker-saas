@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useTransition } from "react"
+import { useRouter } from "next/navigation"
 import { Check } from "lucide-react"
 import { useI18n } from "@/components/i18n-provider"
 import { useSkills } from "@/components/skills-provider"
@@ -9,6 +10,7 @@ import { MAX_SKILLS } from "@/lib/skills"
 import type { Company, Persona } from "@/lib/types"
 import { Field, Modal, inputClass } from "./form-primitives"
 import { SkillMarketplace } from "./skill-marketplace"
+import { CustomSkillModal } from "./custom-skill-modal"
 
 const TIMEZONES = [
   "America/New_York",
@@ -46,6 +48,20 @@ export function PersonaWizard({
     persona?.skillIds ?? defaultSkillIds?.slice(0, MAX_SKILLS) ?? [],
   )
   const [companyId, setCompanyId] = useState(persona?.companyId ?? defaultCompanyId ?? companies[0]?.id ?? "")
+
+  const router = useRouter()
+  const [customOpen, setCustomOpen] = useState(false)
+  const activeCompany = companies.find((c) => c.id === companyId)
+  const discoveredTools = activeCompany?.discoveredTools ?? []
+
+  function handleCustomSkillSaved(skillId: string) {
+    router.refresh()
+    setSkillIds((prev) => {
+      if (prev.includes(skillId)) return prev
+      if (prev.length >= MAX_SKILLS) return prev
+      return [...prev, skillId]
+    })
+  }
 
   function toggleSkill(id: string) {
     setSkillIds((prev) => {
@@ -165,7 +181,12 @@ export function PersonaWizard({
               {skillIds.length}/{MAX_SKILLS}
             </span>
           </div>
-          <SkillMarketplace selected={skillIds} onToggle={toggleSkill} />
+          <SkillMarketplace
+            selected={skillIds}
+            onToggle={toggleSkill}
+            discoveredTools={discoveredTools}
+            onAddCustomClick={() => setCustomOpen(true)}
+          />
           <div className="rounded-lg border border-border bg-background/40 p-3">
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t.wizard.selectedSkills}</p>
             <p className="mt-1 text-sm text-foreground">
@@ -246,6 +267,14 @@ export function PersonaWizard({
           </div>
         </div>
       </form>
+
+      {customOpen && (
+        <CustomSkillModal
+          discoveredTools={discoveredTools}
+          onClose={() => setCustomOpen(false)}
+          onSaved={handleCustomSkillSaved}
+        />
+      )}
     </Modal>
   )
 }

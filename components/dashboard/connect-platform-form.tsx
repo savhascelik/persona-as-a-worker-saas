@@ -48,6 +48,8 @@ export function ConnectPlatformForm({
     formData.set("baseUrl", baseUrl)
     formData.delete("suggestedSkillIds")
     scan?.suggested.forEach((id) => formData.append("suggestedSkillIds", id))
+    formData.delete("discoveredTools")
+    scan?.tools.forEach((tool) => formData.append("discoveredTools", tool))
     startTransition(async () => {
       const result = await createCompanyAction(formData)
       if (result.ok) {

@@ -32,11 +32,15 @@ export async function createCompanyAction(formData: FormData): Promise<CompanyRe
   const suggestedSkillIds = [
     ...new Set(formData.getAll("suggestedSkillIds").map((v) => String(v).trim()).filter(Boolean)),
   ]
+  const discoveredTools = [
+    ...new Set(formData.getAll("discoveredTools").map((v) => String(v).trim()).filter(Boolean)),
+  ]
   const input: CompanyInput = {
     name: String(formData.get("name") || "").trim(),
     domain: String(formData.get("domain") || "").trim(),
     baseUrl: String(formData.get("baseUrl") || "").trim(),
     suggestedSkillIds: suggestedSkillIds.length ? suggestedSkillIds : undefined,
+    discoveredTools: discoveredTools.length ? discoveredTools : undefined,
   }
 
   if (!input.name || !input.domain || !input.baseUrl) {
