@@ -19,4 +19,5 @@ node_modules
 # Local database and scratchpad files
 db.json
 scratch/
+hackathon_info.md
 

@@ -221,24 +221,56 @@ Your behavioral guidelines:
 
     // 5. Execute Tool Call on real MCP endpoint (Security: check if tool name is authorized)
     if (selectedToolCall) {
-      const authorized = toolsList.includes(selectedToolCall.name)
+      let targetBaseUrl = company.baseUrl
+      let originalToolName = selectedToolCall.name
+
+      const baseUrls = company.baseUrl.split(/[\n,]+/).map((u) => u.trim()).filter(Boolean)
+      
+      if (selectedToolCall.name.includes("__")) {
+        const parts = selectedToolCall.name.split("__")
+        const prefix = parts[0]
+        const toolNamePart = parts.slice(1).join("__")
+
+        // Find the index of the base URL that matches this prefix
+        const matchIndex = baseUrls.findIndex((url, idx) => {
+          try {
+            const parsed = new URL(url)
+            let host = parsed.hostname.replace("www.", "").split(".")[0]
+            if (!host || host === "localhost" || host === "127") {
+              const pathSegs = parsed.pathname.split("/").filter(Boolean)
+              host = pathSegs[0] || `service${idx + 1}`
+            }
+            return host.toLowerCase().replace(/[^a-z0-9]/g, "_") === prefix
+          } catch {
+            return `service${idx + 1}` === prefix
+          }
+        })
+
+        if (matchIndex !== -1) {
+          targetBaseUrl = baseUrls[matchIndex]
+          originalToolName = toolNamePart
+          console.log(`[Consolidated Router] Prefix '${prefix}' matched to: ${targetBaseUrl}. Running original tool: ${originalToolName}`)
+        }
+      }
+
+      const authorized = toolsList.includes(selectedToolCall.name) || toolsList.includes(originalToolName)
       if (!authorized) {
         return { ok: false, error: `Security violation: LLM attempted to execute unauthorized tool ${selectedToolCall.name}.` }
       }
 
-      // Execute tool call via POST to platform's baseUrl
-      console.log(`[Executing Tool Call]: ${selectedToolCall.name} with args`, selectedToolCall.args)
+      // Execute tool call via POST to targetBaseUrl
+      console.log(`[Executing Tool Call]: ${originalToolName} via ${targetBaseUrl} with args`, selectedToolCall.args)
       
       let toolResultText = ""
       try {
-        const toolRes = await fetch(company.baseUrl, {
+        const toolRes = await fetch(targetBaseUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             jsonrpc: "2.0",
             method: "tools/call",
             params: {
-              name: selectedToolCall.name,
+              name: originalToolName,
               arguments: selectedToolCall.args
             },
             id: 2

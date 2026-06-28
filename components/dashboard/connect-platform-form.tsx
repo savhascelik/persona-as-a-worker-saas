@@ -71,28 +71,33 @@ export function ConnectPlatformForm({
           <input name="domain" required placeholder={t.connect.domainPlaceholder} className={inputClass} />
         </Field>
         <Field label={t.connect.baseUrl}>
-          <div className="flex gap-2">
-            <input
-              name="baseUrl"
-              type="url"
-              required
-              value={baseUrl}
-              onChange={(e) => {
-                setBaseUrl(e.target.value)
-                setScan(null)
-              }}
-              placeholder={t.connect.baseUrlPlaceholder}
-              className={`${inputClass} font-mono text-xs`}
-            />
-            <button
-              type="button"
-              onClick={runScan}
-              disabled={!baseUrl.trim() || scanning}
-              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-accent/40 bg-accent/10 px-3 text-sm font-medium text-accent transition-colors hover:bg-accent/15 disabled:opacity-50"
-            >
-              {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
-              <span className="hidden sm:inline">{scanning ? t.scanner.scanning : scan ? t.scanner.rescan : t.scanner.scan}</span>
-            </button>
+          <div>
+            <div className="flex gap-2">
+              <input
+                name="baseUrl"
+                type="text"
+                required
+                value={baseUrl}
+                onChange={(e) => {
+                  setBaseUrl(e.target.value)
+                  setScan(null)
+                }}
+                placeholder="https://api.acme.com/mcp, https://slack.acme.com/mcp"
+                className={`${inputClass} font-mono text-xs`}
+              />
+              <button
+                type="button"
+                onClick={runScan}
+                disabled={!baseUrl.trim() || scanning}
+                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-accent/40 bg-accent/10 px-3 text-sm font-medium text-accent transition-colors hover:bg-accent/15 disabled:opacity-50"
+              >
+                {scanning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radar className="h-4 w-4" />}
+                <span className="hidden sm:inline">{scanning ? t.scanner.scanning : scan ? t.scanner.rescan : t.scanner.scan}</span>
+              </button>
+            </div>
+            <p className="text-[10px] text-muted-foreground/75 mt-1.5 leading-relaxed">
+              💡 <strong>Cross-MCP Orchestration:</strong> You can enter multiple comma-separated endpoints. Tools will be namespaced, enabling Personas to orchestrate cross-service workflows dynamically.
+            </p>
           </div>
         </Field>
 

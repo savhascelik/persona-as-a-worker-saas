@@ -5,33 +5,52 @@ export interface ServerScanResult {
   compatibleSkillIds: string[]
 }
 
-/** Matches tools to built-in skills. */
+/** Matches tools to built-in skills, with support for namespaced/prefixed cross-MCP tools. */
 export function getCompatibleSkills(tools: string[]): string[] {
   const toolSet = new Set<string>(tools.map((t) => t.trim().toLowerCase()))
   const compatibleSkillIds = SKILLS.filter((skill) =>
-    skill.requiredTools.every((t) => toolSet.has(t.toLowerCase())),
+    skill.requiredTools.every((t) => {
+      const toolLower = t.toLowerCase()
+      // Matches either exact tool name (e.g., "read_data") OR namespaced tool name (e.g., "hubspot__read_data")
+      return toolSet.has(toolLower) || Array.from(toolSet).some((pt) => pt.endsWith(`__${toolLower}`))
+    }),
   ).map((s) => s.id)
 
   if (compatibleSkillIds.length === 0) {
-    const fallback = SKILLS.find((s) => s.requiredTools.some((t) => toolSet.has(t.toLowerCase())))
+    const fallback = SKILLS.find((s) =>
+      s.requiredTools.some((t) => {
+        const toolLower = t.toLowerCase()
+        return toolSet.has(toolLower) || Array.from(toolSet).some((pt) => pt.endsWith(`__${toolLower}`))
+      }),
+    )
     if (fallback) compatibleSkillIds.push(fallback.id)
   }
 
   return compatibleSkillIds
 }
 
+/** Helper to extract a clean namespace prefix from an MCP url */
+export function getMcpPrefix(url: string, index: number): string {
+  try {
+    const parsed = new URL(url)
+    let host = parsed.hostname.replace("www.", "").split(".")[0]
+    if (!host || host === "localhost" || host === "127") {
+      const pathSegs = parsed.pathname.split("/").filter(Boolean)
+      host = pathSegs[0] || `service${index + 1}`
+    }
+    return host.toLowerCase().replace(/[^a-z0-9]/g, "_")
+  } catch {
+    return `service${index + 1}`
+  }
+}
+
 /**
- * Scan a URL which can be:
+ * Scan a single endpoint which can be:
  * 1. Direct JSON-RPC endpoint.
  * 2. OpenAPI JSON/YAML endpoint.
  * 3. MCP SSE event stream endpoint.
  */
-export async function scanRealEndpoint(url: string): Promise<ServerScanResult> {
-  const cleanUrl = url.trim()
-  if (!cleanUrl) {
-    throw new Error("Endpoint URL is required.")
-  }
-
+export async function scanSingleEndpoint(cleanUrl: string): Promise<string[]> {
   // 1. Try Direct JSON-RPC POST (fast and common for HTTP MCP bridges)
   try {
     const directResponse = await fetch(cleanUrl, {
@@ -49,8 +68,7 @@ export async function scanRealEndpoint(url: string): Promise<ServerScanResult> {
     if (directResponse.ok) {
       const json = await directResponse.json()
       if (json && json.result && Array.isArray(json.result.tools)) {
-        const tools = json.result.tools.map((t: any) => String(t.name || t))
-        return { tools, compatibleSkillIds: getCompatibleSkills(tools) }
+        return json.result.tools.map((t: any) => String(t.name || t))
       }
     }
   } catch (e) {
@@ -194,7 +212,7 @@ export async function scanRealEndpoint(url: string): Promise<ServerScanResult> {
         reader.cancel()
       } catch {}
 
-      return { tools, compatibleSkillIds: getCompatibleSkills(tools) }
+      return tools
     } catch (e: any) {
       try {
         reader.cancel()
@@ -233,21 +251,61 @@ export async function scanRealEndpoint(url: string): Promise<ServerScanResult> {
       if (tools.length === 0) {
         throw new Error("No operations found in OpenAPI schema.")
       }
-      return { tools, compatibleSkillIds: getCompatibleSkills(tools) }
+      return tools
     }
 
-    // Direct JSON Tools Array (format: { tools: ["t1", "t2"] } or { tools: [{ name: "t1" }] })
+    // Direct JSON Tools Array
     if (json.tools && Array.isArray(json.tools)) {
-      const tools = json.tools.map((t: any) => String(t.name || t))
-      return { tools, compatibleSkillIds: getCompatibleSkills(tools) }
+      return json.tools.map((t: any) => String(t.name || t))
     }
     if (Array.isArray(json)) {
-      const tools = json.map((t: any) => String(t.name || t))
-      return { tools, compatibleSkillIds: getCompatibleSkills(tools) }
+      return json.map((t: any) => String(t.name || t))
     }
 
     throw new Error("JSON response matches neither OpenAPI nor MCP tools schema.")
   } catch (err: any) {
     throw new Error(`Failed to parse JSON/OpenAPI schema: ${err.message}`)
+  }
+}
+
+/**
+ * Scan a URL which can be a single endpoint or multiple comma-separated endpoints.
+ * Consolidates tools across endpoints and applies namespace prefixes if multiple are present.
+ */
+export async function scanRealEndpoint(url: string): Promise<ServerScanResult> {
+  const urls = url.split(/[\n,]+/).map((u) => u.trim()).filter(Boolean)
+  if (urls.length === 0) {
+    throw new Error("Endpoint URL is required.")
+  }
+
+  const allTools: string[] = []
+  const errors: string[] = []
+
+  for (let i = 0; i < urls.length; i++) {
+    const targetUrl = urls[i]
+    try {
+      const tools = await scanSingleEndpoint(targetUrl)
+      if (urls.length > 1) {
+        const prefix = getMcpPrefix(targetUrl, i)
+        tools.forEach((t) => allTools.push(`${prefix}__${t}`))
+      } else {
+        tools.forEach((t) => allTools.push(t))
+      }
+    } catch (err: any) {
+      console.error(`[Scanner] Failed to scan endpoint ${targetUrl}:`, err)
+      errors.push(`${targetUrl}: ${err.message}`)
+      if (urls.length === 1) {
+        throw err
+      }
+    }
+  }
+
+  if (allTools.length === 0 && errors.length > 0) {
+    throw new Error(`Failed to scan all endpoints:\n${errors.join("\n")}`)
+  }
+
+  return {
+    tools: allTools,
+    compatibleSkillIds: getCompatibleSkills(allTools),
   }
 }
