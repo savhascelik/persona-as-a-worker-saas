@@ -1,5 +1,5 @@
 import { SiteNav } from "@/components/site-nav"
-import { CtaSection, Features, Hero, SiteFooter } from "@/components/landing"
+import { CtaSection, Features, Hero, InteractiveAlgorithmFlow, SiteFooter } from "@/components/landing"
 
 export default function HomePage() {
   return (
@@ -7,6 +7,7 @@ export default function HomePage() {
       <SiteNav />
       <main>
         <Hero />
+        <InteractiveAlgorithmFlow />
         <Features />
         <CtaSection />
       </main>
@@ -14,3 +15,4 @@ export default function HomePage() {
     </div>
   )
 }
+
