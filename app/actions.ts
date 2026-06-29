@@ -18,10 +18,13 @@ import {
   getAllPersonas,
   getActivitiesByCompany,
   setCompanyCredits,
+  createCreditRequest,
+  getAllCreditRequests,
+  updateCreditRequestStatus,
 } from "@/lib/db"
 import { getPackage } from "@/lib/billing"
 import { SKILL_ICON_NAMES } from "@/lib/skill-icons"
-import type { Company, CompanyInput, SkillTemplate, ActivityEvent } from "@/lib/types"
+import type { Company, CompanyInput, SkillTemplate, ActivityEvent, CreditRequest } from "@/lib/types"
 import { scanRealEndpoint } from "@/lib/mcp-scanner-server"
 
 export type CompanyResult = { ok: true; company: Company } | { ok: false; error: string }
@@ -171,18 +174,117 @@ export async function purchasePackageAction(
   companyId: string,
   packageId: string,
 ): Promise<CompanyResult> {
-  if (!companyId) return { ok: false, error: "Select a company before purchasing credits." }
-  const pkg = getPackage(packageId)
-  if (!pkg) return { ok: false, error: "Unknown seeding package." }
+  return {
+    ok: false,
+    error: "Direct self-allocation is disabled. Seeding Credits must be requested via the Credit Request Form below for admin approval.",
+  }
+}
 
-  // In production this is invoked after a Stripe webhook confirms payment.
-  // Each "action" funds one credit unit of the seeding economy.
-  const company = await addCredits(companyId, pkg.actions)
-  if (!company) return { ok: false, error: "Company not found." }
+export type CreditRequestResult = { ok: true; request: CreditRequest } | { ok: false; error: string }
+
+export async function createCreditRequestAction(
+  companyId: string,
+  amount: number,
+  reason: string
+): Promise<CreditRequestResult> {
+  const { currentUser } = await import("@clerk/nextjs/server")
+  const user = await currentUser()
+  if (!user) {
+    return { ok: false, error: "Unauthorized. You must be signed in to request credits." }
+  }
+
+  const cleanReason = reason.trim()
+  if (!companyId) {
+    return { ok: false, error: "Select a platform connection first." }
+  }
+  if (amount < 500 || amount > 25000) {
+    return { ok: false, error: "Requested amount must be between 500 and 25,000 credits to prevent abuse." }
+  }
+  if (cleanReason.length < 10) {
+    return { ok: false, error: "Please provide a detailed reason (at least 10 characters)." }
+  }
+  if (cleanReason.length > 500) {
+    return { ok: false, error: "Reason cannot exceed 500 characters." }
+  }
+
+  const company = await getCompanyById(companyId)
+  if (!company) {
+    return { ok: false, error: "Platform connection not found." }
+  }
+
+  // Anti-Abuse Rate Limiting: Check for existing pending requests for this company to prevent bot-floods
+  const allRequests = await getAllCreditRequests()
+  const hasPending = allRequests.some(
+    (r) => r.companyId === companyId && r.status === "pending"
+  )
+  if (hasPending) {
+    return {
+      ok: false,
+      error: "You already have a pending credit request for this platform connection. Please wait for an admin to approve or reject it."
+    }
+  }
+
+  const email = user.emailAddresses?.[0]?.emailAddress || "anonymous@example.com"
+  const name = [user.firstName, user.lastName].filter(Boolean).join(" ") || "Unnamed User"
+
+  const request = await createCreditRequest(`req_${nanoid(12)}`, {
+    userId: user.id,
+    userEmail: email,
+    userName: name,
+    companyId,
+    companyName: company.name,
+    amount,
+    reason: cleanReason,
+  })
 
   revalidatePath("/dashboard")
   revalidatePath("/dashboard/billing")
-  return { ok: true, company }
+  revalidatePath("/dashboard/admin")
+  return { ok: true, request }
+}
+
+export async function listCreditRequestsAction(): Promise<CreditRequest[]> {
+  const { currentUser } = await import("@clerk/nextjs/server")
+  const user = await currentUser()
+  if (user?.publicMetadata?.role !== "admin") {
+    throw new Error("Unauthorized. Admin access required.")
+  }
+  return getAllCreditRequests()
+}
+
+export async function processCreditRequestAction(
+  requestId: string,
+  status: "approved" | "rejected"
+): Promise<{ ok: boolean; error?: string }> {
+  const { currentUser } = await import("@clerk/nextjs/server")
+  const user = await currentUser()
+  if (user?.publicMetadata?.role !== "admin") {
+    return { ok: false, error: "Unauthorized. Admin access required." }
+  }
+
+  const all = await getAllCreditRequests()
+  const req = all.find((r) => r.id === requestId)
+  if (!req) {
+    return { ok: false, error: "Credit request not found." }
+  }
+
+  if (req.status !== "pending") {
+    return { ok: false, error: "This request has already been processed." }
+  }
+
+  if (status === "approved") {
+    const updatedCompany = await addCredits(req.companyId, req.amount)
+    if (!updatedCompany) {
+      return { ok: false, error: "Target platform connection not found. Cannot award credits." }
+    }
+  }
+
+  await updateCreditRequestStatus(requestId, status, user.id)
+
+  revalidatePath("/dashboard")
+  revalidatePath("/dashboard/billing")
+  revalidatePath("/dashboard/admin")
+  return { ok: true }
 }
 
 export async function setCompanyCreditsAction(

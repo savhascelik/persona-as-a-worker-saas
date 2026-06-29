@@ -9,7 +9,7 @@ import {
 } from "@aws-sdk/lib-dynamodb"
 import { awsCredentialsProvider } from "@vercel/functions/oidc"
 import { STARTER_GRANT } from "./billing"
-import type { Company, CompanyInput, Persona, PersonaInput, SkillTemplate, ActivityEvent, AgentGoal, AgentGoalStep } from "./types"
+import type { Company, CompanyInput, Persona, PersonaInput, SkillTemplate, ActivityEvent, AgentGoal, AgentGoalStep, CreditRequest } from "./types"
 import fs from "fs"
 import path from "path"
 import { nanoid } from "nanoid"
@@ -48,6 +48,7 @@ interface LocalDbData {
   activities?: ActivityEvent[]
   goals?: AgentGoal[]
   goalSteps?: AgentGoalStep[]
+  creditRequests?: CreditRequest[]
 }
 
 function getLocalDb(): LocalDbData {
@@ -906,5 +907,101 @@ export async function deleteGoal(id: string): Promise<boolean> {
   }
 
   return true
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Credit Requests (Pricing / Admin Review workflow)                          */
+/* -------------------------------------------------------------------------- */
+
+export async function createCreditRequest(
+  id: string,
+  input: Omit<CreditRequest, "id" | "entityType" | "createdAt" | "status">
+): Promise<CreditRequest> {
+  const req: CreditRequest = {
+    id,
+    entityType: "credit_request",
+    status: "pending",
+    createdAt: Date.now(),
+    ...input,
+  }
+
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    if (!db.creditRequests) (db as any).creditRequests = []
+    db.creditRequests!.push(req)
+    saveLocalDb(db)
+    return req
+  }
+
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: { [PK]: "CREDIT_REQUEST", [SK]: id, ...req },
+    }),
+  )
+  return req
+}
+
+export async function getAllCreditRequests(): Promise<CreditRequest[]> {
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    const requests = (db as any).creditRequests || []
+    return requests.sort((a: CreditRequest, b: CreditRequest) => b.createdAt - a.createdAt)
+  }
+
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: TABLE_NAME,
+      KeyConditionExpression: "#pk = :pk",
+      ExpressionAttributeNames: { "#pk": PK },
+      ExpressionAttributeValues: { ":pk": "CREDIT_REQUEST" },
+    }),
+  )
+  const requests = (result.Items || []) as CreditRequest[]
+  return requests.sort((a, b) => b.createdAt - a.createdAt)
+}
+
+export async function getCreditRequestsByUser(userId: string): Promise<CreditRequest[]> {
+  const all = await getAllCreditRequests()
+  return all.filter((r) => r.userId === userId)
+}
+
+export async function getCreditRequestsByCompany(companyId: string): Promise<CreditRequest[]> {
+  const all = await getAllCreditRequests()
+  return all.filter((r) => r.companyId === companyId)
+}
+
+export async function updateCreditRequestStatus(
+  id: string,
+  status: "approved" | "rejected",
+  processedBy: string
+): Promise<CreditRequest | null> {
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    const requests = (db as any).creditRequests || []
+    const req = requests.find((r: CreditRequest) => r.id === id)
+    if (!req) return null
+    req.status = status
+    req.processedAt = Date.now()
+    req.processedBy = processedBy
+    saveLocalDb(db)
+    return req
+  }
+
+  const result = await docClient.send(
+    new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: { [PK]: "CREDIT_REQUEST", [SK]: id },
+      UpdateExpression: "SET #status = :status, processedAt = :processedAt, processedBy = :processedBy",
+      ExpressionAttributeNames: { "#status": "status" },
+      ExpressionAttributeValues: {
+        ":status": status,
+        ":processedAt": Date.now(),
+        ":processedBy": processedBy,
+      },
+      ReturnValues: "ALL_NEW",
+    }),
+  )
+  return (result.Attributes as CreditRequest) || null
 }
 

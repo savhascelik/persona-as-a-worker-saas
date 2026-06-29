@@ -26,10 +26,10 @@ import { useI18n } from "@/components/i18n-provider"
 import { useSession } from "@/components/session-provider"
 import { SkillGenerator } from "@/components/admin/skill-generator"
 import { ActivePersonasChart, CreditsChart, TopSkillsChart } from "@/components/admin/admin-charts"
-import { deleteSkillTemplateAction, setCompanyCreditsAction } from "@/app/actions"
+import { deleteSkillTemplateAction, setCompanyCreditsAction, processCreditRequestAction } from "@/app/actions"
 import { SKILLS } from "@/lib/skills"
 import { resolveSkillIcon } from "@/lib/skill-icons"
-import type { Company, Persona, SkillTemplate } from "@/lib/types"
+import type { Company, Persona, SkillTemplate, CreditRequest } from "@/lib/types"
 
 interface ClerkUser {
   id: string
@@ -44,16 +44,19 @@ export function AdminClient({
   personas,
   initialTemplates,
   users = [],
+  initialCreditRequests = [],
 }: {
   companies: Company[]
   personas: Persona[]
   initialTemplates: SkillTemplate[]
   users?: ClerkUser[]
+  initialCreditRequests?: CreditRequest[]
 }) {
   const { t, locale } = useI18n()
   const { isAdmin } = useSession()
   const [templates, setTemplates] = useState<SkillTemplate[]>(initialTemplates)
-  const [activeTab, setActiveTab] = useState<"analytics" | "users" | "companies" | "templates">("analytics")
+  const [creditRequests, setCreditRequests] = useState<CreditRequest[]>(initialCreditRequests)
+  const [activeTab, setActiveTab] = useState<"analytics" | "users" | "companies" | "templates" | "requests">("analytics")
   
   // Search states
   const [usersSearch, setUsersUsersSearch] = useState("")
@@ -137,6 +140,21 @@ export function AdminClient({
     setTemplates((prev) => prev.filter((s) => s.id !== id))
     startTransition(async () => {
       await deleteSkillTemplateAction(id)
+    })
+  }
+
+  function handleProcessRequest(requestId: string, status: "approved" | "rejected") {
+    startTransition(async () => {
+      const res = await processCreditRequestAction(requestId, status)
+      if (res.ok) {
+        setCreditRequests((prev) =>
+          prev.map((r) =>
+            r.id === requestId
+              ? { ...r, status, processedAt: Date.now(), processedBy: "Admin" }
+              : r
+          )
+        )
+      }
     })
   }
 
@@ -259,6 +277,20 @@ export function AdminClient({
           {t.admin.tabSkills}
           <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
             {templates.length}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("requests")}
+          className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === "requests"
+              ? "border-accent text-accent"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Coins className="h-4 w-4" />
+          {locale === "es" ? "Solicitudes" : "Credit Requests"}
+          <span className="rounded-full bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+            {creditRequests.filter(r => r.status === "pending").length}
           </span>
         </button>
       </div>
@@ -527,6 +559,119 @@ export function AdminClient({
           </div>
 
           <SkillGenerator onSaved={(skill) => setTemplates((prev) => [skill, ...prev])} />
+        </div>
+      )}
+
+      {/* TAB 5: CREDIT TRIAL REQUESTS */}
+      {activeTab === "requests" && (
+        <div className="mt-6 space-y-4 animate-in fade-in duration-200">
+          <div>
+            <h2 className="text-lg font-medium text-foreground">
+              {locale === "es" ? "Solicitudes de Crédito de Prueba" : "Trial Credit Requests"}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {locale === "es"
+                ? "Revisar, aprobar o rechazar solicitudes de crédito para evitar abusos o uso excesivo de recursos."
+                : "Review, approve, or reject connection credit request logs to prevent resource abuse."}
+            </p>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-border bg-card/60 backdrop-blur-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-card/80 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <th className="px-6 py-4">{locale === "es" ? "Solicitante" : "Requester"}</th>
+                    <th className="px-6 py-4">{locale === "es" ? "Plataforma" : "Platform Connection"}</th>
+                    <th className="px-6 py-4">{locale === "es" ? "Cantidad" : "Requested Amount"}</th>
+                    <th className="px-6 py-4">{locale === "es" ? "Motivo" : "Reason"}</th>
+                    <th className="px-6 py-4">{locale === "es" ? "Fecha" : "Date"}</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {creditRequests.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground">
+                        {locale === "es" ? "No hay solicitudes de crédito registradas." : "No credit requests found in system."}
+                      </td>
+                    </tr>
+                  ) : (
+                    creditRequests.map((req) => {
+                      const dateStr = new Date(req.createdAt).toLocaleDateString(
+                        locale === "es" ? "es-ES" : "en-US",
+                        { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }
+                      )
+                      return (
+                        <tr key={req.id} className="hover:bg-muted/40 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <span className="font-semibold text-foreground">{req.userName}</span>
+                              <span className="text-xs text-muted-foreground font-mono">{req.userEmail}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-foreground">{req.companyName}</span>
+                              <span className="text-xs text-muted-foreground font-mono">{req.companyId}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 font-mono font-bold text-foreground">
+                            +{nf.format(req.amount)}
+                          </td>
+                          <td className="px-6 py-4 max-w-[220px] text-xs text-muted-foreground truncate" title={req.reason}>
+                            {req.reason}
+                          </td>
+                          <td className="px-6 py-4 text-xs font-mono text-muted-foreground whitespace-nowrap">
+                            {dateStr}
+                          </td>
+                          <td className="px-6 py-4 text-right whitespace-nowrap">
+                            {req.status === "pending" ? (
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  onClick={() => handleProcessRequest(req.id, "approved")}
+                                  disabled={isPending}
+                                  className="inline-flex h-8 items-center gap-1 rounded-xl bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 hover:border-emerald-500/40 active:scale-[0.96] transition-all"
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                  {locale === "es" ? "Aprobar" : "Approve"}
+                                </button>
+                                <button
+                                  onClick={() => handleProcessRequest(req.id, "rejected")}
+                                  disabled={isPending}
+                                  className="inline-flex h-8 items-center gap-1 rounded-xl bg-rose-500/10 px-3 text-xs font-semibold text-rose-400 border border-rose-500/20 hover:bg-rose-500/20 hover:border-rose-500/40 active:scale-[0.96] transition-all"
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                  {locale === "es" ? "Rechazar" : "Reject"}
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-end text-xs">
+                                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 font-semibold ${
+                                  req.status === "approved"
+                                    ? "bg-emerald-500/10 border border-emerald-500/25 text-emerald-400"
+                                    : "bg-rose-500/10 border border-rose-500/25 text-rose-400"
+                                }`}>
+                                  {req.status === "approved"
+                                    ? locale === "es" ? "Aprobado" : "Approved"
+                                    : locale === "es" ? "Rechazado" : "Rejected"}
+                                </span>
+                                {req.processedAt && (
+                                  <span className="text-[10px] text-muted-foreground mt-1 font-mono">
+                                    Processed: {new Date(req.processedAt).toLocaleDateString(locale === "es" ? "es-ES" : "en-US", { month: "short", day: "numeric" })}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       )}
 

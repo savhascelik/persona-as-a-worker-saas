@@ -154,3 +154,19 @@ export interface AgentGoalStep {
   observation: string // tool execution output
   createdAt: number
 }
+
+export interface CreditRequest {
+  id: string
+  entityType: "credit_request"
+  userId: string
+  userEmail: string
+  userName: string
+  companyId: string
+  companyName: string
+  amount: number
+  reason: string
+  status: "pending" | "approved" | "rejected"
+  createdAt: number
+  processedAt?: number
+  processedBy?: string
+}

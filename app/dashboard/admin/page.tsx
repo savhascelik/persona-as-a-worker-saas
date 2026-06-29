@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 import { currentUser, createClerkClient } from "@clerk/nextjs/server"
 import { AdminClient } from "@/components/admin/admin-client"
-import { getAllCompanies, getAllPersonas, getAllSkillTemplates } from "@/lib/db"
+import { getAllCompanies, getAllPersonas, getAllSkillTemplates, getAllCreditRequests } from "@/lib/db"
 import type { Company, Persona, SkillTemplate } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -44,10 +44,11 @@ export default async function AdminPage() {
     ]
   }
 
-  const [companies, personas, templates]: [Company[], Persona[], SkillTemplate[]] = await Promise.all([
+  const [companies, personas, templates, creditRequests] = await Promise.all([
     getAllCompanies(),
     getAllPersonas(),
     getAllSkillTemplates(),
+    getAllCreditRequests(),
   ])
 
   return (
@@ -56,6 +57,7 @@ export default async function AdminPage() {
       personas={personas}
       initialTemplates={templates}
       users={clerkUsers}
+      initialCreditRequests={creditRequests}
     />
   )
 }
