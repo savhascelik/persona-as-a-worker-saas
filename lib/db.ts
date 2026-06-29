@@ -19,7 +19,27 @@ export const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME
 // Use Local JSON DB fallback if AWS credentials or table name are missing.
 const isLocalDb = !TABLE_NAME || !process.env.AWS_ROLE_ARN || !process.env.AWS_REGION
 
-const LOCAL_DB_PATH = path.join(process.cwd(), "db.json")
+// Place db.json inside the .next folder during local dev. This prevents Next.js dev server's
+// file watcher from recompiling continuously on every database write (the HMR feedback loop).
+const ROOT_DB_PATH = path.join(process.cwd(), "db.json")
+const NEXT_DB_PATH = path.join(process.cwd(), ".next", "db.json")
+
+let LOCAL_DB_PATH = NEXT_DB_PATH
+
+try {
+  const nextDir = path.join(process.cwd(), ".next")
+  if (!fs.existsSync(nextDir)) {
+    fs.mkdirSync(nextDir, { recursive: true })
+  }
+  
+  // Auto-migrate old database if it exists in root
+  if (fs.existsSync(ROOT_DB_PATH) && !fs.existsSync(NEXT_DB_PATH)) {
+    fs.copyFileSync(ROOT_DB_PATH, NEXT_DB_PATH)
+    console.log("[DB Migration]: Migrated root db.json to .next/db.json to bypass Next.js file-watch recompilation loop.")
+  }
+} catch (err) {
+  LOCAL_DB_PATH = ROOT_DB_PATH
+}
 
 interface LocalDbData {
   companies: Company[]
@@ -740,5 +760,41 @@ export async function getGoalSteps(goalId: string): Promise<AgentGoalStep[]> {
   return list
     .filter((s) => s.goalId === goalId)
     .sort((a, b) => a.iteration - b.iteration)
+}
+
+export async function deleteGoal(id: string): Promise<boolean> {
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    if (!db.goals) db.goals = []
+    if (!db.goalSteps) db.goalSteps = []
+    
+    db.goals = db.goals.filter((g) => g.id !== id)
+    db.goalSteps = db.goalSteps.filter((s) => s.goalId !== id)
+    
+    saveLocalDb(db)
+    return true
+  }
+
+  // Delete the goal itself
+  const { DeleteCommand } = await import("@aws-sdk/lib-dynamodb")
+  await docClient.send(
+    new DeleteCommand({
+      TableName: TABLE_NAME,
+      Key: { [PK]: "GOAL", [SK]: id },
+    }),
+  )
+
+  // Also query and delete related steps in DynamoDB
+  const steps = await getGoalSteps(id)
+  for (const step of steps) {
+    await docClient.send(
+      new DeleteCommand({
+        TableName: TABLE_NAME,
+        Key: { [PK]: "GOAL_STEP", [SK]: step.id },
+      }),
+    )
+  }
+
+  return true
 }
 

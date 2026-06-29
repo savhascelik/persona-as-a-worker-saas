@@ -13,14 +13,18 @@ import {
   Sparkles,
   Target,
   Terminal,
-  XCircle
+  XCircle,
+  Square,
+  Trash2
 } from "lucide-react"
 import {
   createGoalAction,
   executeSingleGoalStepAction,
   getGoalDetailsAction,
   getGoalsByPersonaAction,
-  runGoalLoopAction
+  runGoalLoopAction,
+  stopGoalAction,
+  deleteGoalAction
 } from "@/app/actions/goal-actions"
 import type { AgentGoal, AgentGoalStep, Company, Persona } from "@/lib/types"
 
@@ -118,6 +122,28 @@ export function PersonaGoals({
       if (res.ok) {
         // Optimistically set to running so polling triggers
         setGoals(prev => prev.map(g => g.id === goalId ? { ...g, status: "running" } : g))
+      }
+    })
+  }
+
+  const handleStop = (goalId: string) => {
+    startTransition(async () => {
+      const res = await stopGoalAction(goalId)
+      if (res.ok) {
+        setGoals(prev => prev.map(g => g.id === goalId ? { ...g, status: "failed", result: "Manually stopped by operator." } : g))
+      }
+    })
+  }
+
+  const handleDeleteGoal = (goalId: string) => {
+    if (!confirm("Are you sure you want to delete this goal and its step logs?")) return
+    startTransition(async () => {
+      const res = await deleteGoalAction(goalId)
+      if (res.ok) {
+        setGoals(prev => prev.filter(g => g.id !== goalId))
+        if (expandedGoalId === goalId) {
+          setExpandedGoalId(null)
+        }
       }
     })
   }
@@ -241,15 +267,27 @@ export function PersonaGoals({
                   </div>
 
                   <div className="flex items-center gap-2 self-start sm:self-center" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      onClick={() => handleRunAuto(g.id)}
-                      disabled={isPending || running || g.status === "success" || g.status === "failed"}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent/10 px-3 text-xs font-semibold text-accent border border-accent/20 transition-all hover:bg-accent hover:text-white disabled:opacity-40"
-                    >
-                      {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
-                      Autonomous Run
-                    </button>
+                    {running ? (
+                      <button
+                        type="button"
+                        onClick={() => handleStop(g.id)}
+                        disabled={isPending}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md bg-rose-500/10 px-3 text-xs font-semibold text-rose-500 border border-rose-500/20 transition-all hover:bg-rose-500 hover:text-white disabled:opacity-40"
+                      >
+                        <Square className="h-3 w-3 fill-current" />
+                        Stop
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleRunAuto(g.id)}
+                        disabled={isPending || g.status === "success" || g.status === "failed"}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md bg-accent/10 px-3 text-xs font-semibold text-accent border border-accent/20 transition-all hover:bg-accent hover:text-white disabled:opacity-40"
+                      >
+                        <Play className="h-3 w-3" />
+                        Autonomous Run
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => handleRunStep(g.id)}
@@ -258,6 +296,15 @@ export function PersonaGoals({
                     >
                       <Activity className="h-3 w-3" />
                       Single Step
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteGoal(g.id)}
+                      disabled={isPending}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground transition-all hover:bg-rose-500/10 hover:text-rose-500 disabled:opacity-40"
+                      title="Delete Goal"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
                     <div className="text-muted-foreground hover:text-foreground p-1 cursor-pointer ml-1" onClick={() => setExpandedGoalId(isExpanded ? null : g.id)}>
                       {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}

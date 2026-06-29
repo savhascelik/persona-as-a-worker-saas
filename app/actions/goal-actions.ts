@@ -8,7 +8,8 @@ import {
   getGoalsByPersona,
   getGoalsByCompany,
   getGoalSteps,
-  updateGoal
+  updateGoal,
+  deleteGoal
 } from "@/lib/db"
 import { executeGoalLoop } from "@/lib/agent-runner"
 import type { AgentGoal, AgentGoalStep } from "@/lib/types"
@@ -152,5 +153,48 @@ export async function executeSingleGoalStepAction(
   } catch (err: any) {
     console.error("[Execute Single Goal Step Action Error]:", err)
     return { ok: false, error: err.message || "Failed to execute step." }
+  }
+}
+
+export async function stopGoalAction(
+  goalId: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requireUser()
+    const goal = await getGoalById(goalId)
+    if (!goal) {
+      return { ok: false, error: "Goal not found." }
+    }
+    
+    // Changing status to failed/success acts as a stop signal because executeGoalLoop checks for status === "running"
+    await updateGoal(goalId, { status: "failed", result: "Manually stopped by operator." })
+    
+    revalidatePath("/dashboard")
+    revalidatePath(`/dashboard/personas/${goal.personaId}`)
+    return { ok: true }
+  } catch (err: any) {
+    console.error("[Stop Goal Action Error]:", err)
+    return { ok: false, error: err.message || "Failed to stop goal." }
+  }
+}
+
+export async function deleteGoalAction(
+  goalId: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await requireUser()
+    const goal = await getGoalById(goalId)
+    if (!goal) {
+      return { ok: false, error: "Goal not found." }
+    }
+    
+    await deleteGoal(goalId)
+    
+    revalidatePath("/dashboard")
+    revalidatePath(`/dashboard/personas/${goal.personaId}`)
+    return { ok: true }
+  } catch (err: any) {
+    console.error("[Delete Goal Action Error]:", err)
+    return { ok: false, error: err.message || "Failed to delete goal." }
   }
 }
