@@ -87,7 +87,10 @@ export async function scanSingleEndpoint(cleanUrl: string): Promise<string[]> {
   try {
     const directResponse = await fetch(cleanUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
       body: JSON.stringify({
         jsonrpc: "2.0",
         method: "tools/list",
@@ -187,7 +190,10 @@ export async function scanSingleEndpoint(cleanUrl: string): Promise<string[]> {
     // Issue tools/list call
     const postPromise = fetch(postUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      },
       body: JSON.stringify({
         jsonrpc: "2.0",
         method: "tools/list",

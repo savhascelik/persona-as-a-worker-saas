@@ -18,7 +18,8 @@ import { decrypt } from "./crypto"
 
 function getAuthHeaders(company: Company, targetUrl: string): Record<string, string> {
   const headers: Record<string, string> = {
-    "Content-Type": "application/json"
+    "Content-Type": "application/json",
+    "Accept": "application/json"
   }
   
   if (!company.mcpAuth) return headers
