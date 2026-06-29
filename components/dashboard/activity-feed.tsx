@@ -153,7 +153,7 @@ export function ActivityFeed({ personas, companyId }: ActivityFeedProps) {
           {companyId && (
             <button
               onClick={handleTriggerRun}
-              disabled={triggering || personas.filter(p => p.status !== "offline" && p.status !== "hibernating").length === 0}
+              disabled={triggering || personas.length === 0}
               className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm transition-all duration-300
                 ${
                   triggering
@@ -206,9 +206,9 @@ export function ActivityFeed({ personas, companyId }: ActivityFeedProps) {
           <AlertCircle className="h-8 w-8 text-muted-foreground/50 mb-3" />
           <p className="text-sm text-foreground/80 font-medium">No execution history found</p>
           <p className="mt-1 max-w-[260px] text-xs text-muted-foreground leading-relaxed">
-            {personas.filter((p) => p.status !== "offline" && p.status !== "hibernating").length > 0
-              ? "Your active personas are ready. Click 'Trigger Agent Loop' above to run their first live decisions!"
-              : "Ensure your personas are deployed and within their working hours to begin executing real MCP actions."}
+            {personas.length > 0
+              ? "Your personas are ready. Click 'Trigger Agent Loop' above to run their live decisions instantly (forces immediate execution even if offline or hibernating)!"
+              : "Create a persona first to begin executing real MCP actions."}
           </p>
         </div>
       ) : (
