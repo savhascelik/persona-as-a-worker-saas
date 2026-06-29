@@ -1,8 +1,8 @@
 "use client"
 
-import { useMemo, useState, useTransition } from "react"
+import { useMemo, useState, useTransition, Fragment } from "react"
 import { useRouter } from "next/navigation"
-import { Building2, Clock, Moon, Pencil, Plus, Timer, Trash2, TriangleAlert, Users } from "lucide-react"
+import { Building2, Clock, Moon, Pencil, Plus, Target, Timer, Trash2, TriangleAlert, Users } from "lucide-react"
 import { useI18n } from "@/components/i18n-provider"
 import { useSession } from "@/components/session-provider"
 import { StatusBadge } from "./status-badge"
@@ -12,6 +12,7 @@ import { ActivityFeed } from "./activity-feed"
 import { DashboardHeader } from "./dashboard-header"
 import { deletePersonaAction } from "@/app/actions/persona-actions"
 import { useSkills } from "@/components/skills-provider"
+import { PersonaGoals } from "./persona-goals"
 import type { Company, Persona } from "@/lib/types"
 
 function pad(n: number) {
@@ -35,6 +36,7 @@ export function DashboardClient({
   const [connectOpen, setConnectOpen] = useState(false)
   const [editing, setEditing] = useState<Persona | undefined>(undefined)
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [expandedPersonaId, setExpandedPersonaId] = useState<string | null>(null)
   const [, startTransition] = useTransition()
 
   const visiblePersonas = useMemo(
@@ -215,10 +217,10 @@ export function DashboardClient({
                       </thead>
                       <tbody>
                         {visiblePersonas.map((p) => (
-                          <tr
-                            key={p.id}
-                            className={`border-b border-border/60 transition-opacity last:border-0 ${pendingId === p.id ? "opacity-40" : ""}`}
-                          >
+                          <Fragment key={p.id}>
+                            <tr
+                              className={`border-b border-border/60 transition-opacity last:border-0 ${pendingId === p.id ? "opacity-40" : ""}`}
+                            >
                             <td className="px-5 py-4">
                               <div className="font-medium text-foreground">{p.name}</div>
                               <div className="text-xs text-muted-foreground">{p.role}</div>
@@ -259,6 +261,18 @@ export function DashboardClient({
                               <div className="flex items-center justify-end gap-1">
                                 <button
                                   type="button"
+                                  onClick={() => setExpandedPersonaId(expandedPersonaId === p.id ? null : p.id)}
+                                  title="Objectives & Goals"
+                                  className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                                    expandedPersonaId === p.id
+                                      ? "bg-accent/25 text-accent border border-accent/30"
+                                      : "text-muted-foreground hover:bg-accent/10 hover:text-accent border border-transparent"
+                                  }`}
+                                >
+                                  <Target className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => openEdit(p)}
                                   aria-label={t.dashboard.edit}
                                   className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/10 hover:text-foreground"
@@ -277,7 +291,20 @@ export function DashboardClient({
                               </div>
                             </td>
                           </tr>
-                        ))}
+                          {expandedPersonaId === p.id && (
+                            <tr key={`${p.id}-goals`} className="bg-muted/10 border-b border-border/40">
+                              <td colSpan={6} className="px-5 py-5">
+                                <div className="animate-in fade-in-50 duration-200">
+                                  <PersonaGoals
+                                    persona={p}
+                                    company={activeCompany || companies.find((c) => c.id === p.companyId)!}
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      ))}
                       </tbody>
                     </table>
                   </div>

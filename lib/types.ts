@@ -117,3 +117,31 @@ export interface ActivityEvent {
   message: string
   at: number
 }
+
+export type GoalStatus = "pending" | "running" | "success" | "failed"
+
+export interface AgentGoal {
+  id: string
+  entityType: "goal"
+  companyId: string
+  personaId: string
+  title: string
+  status: GoalStatus
+  maxIterations: number
+  currentIteration: number
+  createdAt: number
+  completedAt?: number
+  result?: string
+}
+
+export interface AgentGoalStep {
+  id: string
+  entityType: "goal_step"
+  goalId: string
+  iteration: number
+  thought: string
+  action: string      // e.g. "call_tool: read_data" or "none"
+  actionArgs?: string  // JSON stringified tool arguments
+  observation: string // tool execution output
+  createdAt: number
+}

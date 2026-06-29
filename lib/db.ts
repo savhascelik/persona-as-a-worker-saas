@@ -9,7 +9,7 @@ import {
 } from "@aws-sdk/lib-dynamodb"
 import { awsCredentialsProvider } from "@vercel/functions/oidc"
 import { STARTER_GRANT } from "./billing"
-import type { Company, CompanyInput, Persona, PersonaInput, SkillTemplate, ActivityEvent } from "./types"
+import type { Company, CompanyInput, Persona, PersonaInput, SkillTemplate, ActivityEvent, AgentGoal, AgentGoalStep } from "./types"
 import fs from "fs"
 import path from "path"
 import { nanoid } from "nanoid"
@@ -26,6 +26,8 @@ interface LocalDbData {
   personas: Persona[]
   skills: SkillTemplate[]
   activities?: ActivityEvent[]
+  goals?: AgentGoal[]
+  goalSteps?: AgentGoalStep[]
 }
 
 function getLocalDb(): LocalDbData {
@@ -34,14 +36,21 @@ function getLocalDb(): LocalDbData {
       companies: [],
       personas: [],
       skills: [],
+      activities: [],
+      goals: [],
+      goalSteps: []
     }
     fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(initialData, null, 2))
     return initialData
   }
   try {
-    return JSON.parse(fs.readFileSync(LOCAL_DB_PATH, "utf-8"))
+    const data = JSON.parse(fs.readFileSync(LOCAL_DB_PATH, "utf-8"))
+    if (!data.activities) data.activities = []
+    if (!data.goals) data.goals = []
+    if (!data.goalSteps) data.goalSteps = []
+    return data
   } catch (e) {
-    return { companies: [], personas: [], skills: [] }
+    return { companies: [], personas: [], skills: [], activities: [], goals: [], goalSteps: [] }
   }
 }
 
@@ -525,3 +534,210 @@ export async function getActivitiesByCompany(companyId: string, limit = 20): Pro
     .sort((a, b) => b.at - a.at)
     .slice(0, limit)
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Agent Goals                                                               */
+/* -------------------------------------------------------------------------- */
+
+export async function createGoal(goalInput: Omit<AgentGoal, "id" | "createdAt" | "entityType">): Promise<AgentGoal> {
+  const goal: AgentGoal = {
+    id: `goal_${nanoid(12)}`,
+    entityType: "goal",
+    createdAt: Date.now(),
+    ...goalInput,
+  }
+
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    if (!db.goals) db.goals = []
+    db.goals.push(goal)
+    saveLocalDb(db)
+    return goal
+  }
+
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: { [PK]: "GOAL", [SK]: goal.id, ...goal },
+    }),
+  )
+  return goal
+}
+
+export async function getGoalById(id: string): Promise<AgentGoal | null> {
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    return db.goals?.find((g) => g.id === id) || null
+  }
+
+  const result = await docClient.send(
+    new GetCommand({
+      TableName: TABLE_NAME,
+      Key: { [PK]: "GOAL", [SK]: id },
+    }),
+  )
+  return (result.Item as AgentGoal) || null
+}
+
+export async function getGoalsByPersona(personaId: string): Promise<AgentGoal[]> {
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    const list = db.goals ?? []
+    return list
+      .filter((g) => g.personaId === personaId)
+      .sort((a, b) => b.createdAt - a.createdAt)
+  }
+
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: TABLE_NAME,
+      KeyConditionExpression: "#pk = :pk",
+      ExpressionAttributeNames: { "#pk": PK },
+      ExpressionAttributeValues: { ":pk": "GOAL" },
+    }),
+  )
+  const list = (result.Items || []) as AgentGoal[]
+  return list
+    .filter((g) => g.personaId === personaId)
+    .sort((a, b) => b.createdAt - a.createdAt)
+}
+
+export async function getGoalsByCompany(companyId: string): Promise<AgentGoal[]> {
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    const list = db.goals ?? []
+    return list
+      .filter((g) => g.companyId === companyId)
+      .sort((a, b) => b.createdAt - a.createdAt)
+  }
+
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: TABLE_NAME,
+      KeyConditionExpression: "#pk = :pk",
+      ExpressionAttributeNames: { "#pk": PK },
+      ExpressionAttributeValues: { ":pk": "GOAL" },
+    }),
+  )
+  const list = (result.Items || []) as AgentGoal[]
+  return list
+    .filter((g) => g.companyId === companyId)
+    .sort((a, b) => b.createdAt - a.createdAt)
+}
+
+export async function updateGoal(
+  id: string,
+  updates: Partial<Omit<AgentGoal, "id" | "createdAt" | "entityType" | "companyId" | "personaId">>,
+): Promise<AgentGoal | null> {
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    if (!db.goals) db.goals = []
+    const idx = db.goals.findIndex((g) => g.id === id)
+    if (idx === -1) return null
+    const g = db.goals[idx]
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === undefined) continue
+      ;(g as any)[key] = value
+    }
+    saveLocalDb(db)
+    return g
+  }
+
+  const expressionParts: string[] = []
+  const expressionAttributeNames: Record<string, string> = {}
+  const expressionAttributeValues: Record<string, unknown> = {}
+
+  for (const [key, value] of Object.entries(updates)) {
+    if (value === undefined) continue
+    expressionParts.push(`#${key} = :${key}`)
+    expressionAttributeNames[`#${key}`] = key
+    expressionAttributeValues[`:${key}`] = value
+  }
+
+  if (expressionParts.length === 0) {
+    return getGoalById(id)
+  }
+
+  const result = await docClient.send(
+    new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: { [PK]: "GOAL", [SK]: id },
+      UpdateExpression: `SET ${expressionParts.join(", ")}`,
+      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ReturnValues: "ALL_NEW",
+    }),
+  )
+
+  return (result.Attributes as AgentGoal) || null
+}
+
+export async function getAllGoals(): Promise<AgentGoal[]> {
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    return db.goals ?? []
+  }
+
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: TABLE_NAME,
+      KeyConditionExpression: "#pk = :pk",
+      ExpressionAttributeNames: { "#pk": PK },
+      ExpressionAttributeValues: { ":pk": "GOAL" },
+    }),
+  )
+  return (result.Items || []) as AgentGoal[]
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Agent Goal Steps                                                          */
+/* -------------------------------------------------------------------------- */
+
+export async function createGoalStep(stepInput: Omit<AgentGoalStep, "id" | "createdAt" | "entityType">): Promise<AgentGoalStep> {
+  const step: AgentGoalStep = {
+    id: `step_${nanoid(12)}`,
+    entityType: "goal_step",
+    createdAt: Date.now(),
+    ...stepInput,
+  }
+
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    if (!db.goalSteps) db.goalSteps = []
+    db.goalSteps.push(step)
+    saveLocalDb(db)
+    return step
+  }
+
+  await docClient.send(
+    new PutCommand({
+      TableName: TABLE_NAME,
+      Item: { [PK]: "GOAL_STEP", [SK]: step.id, ...step },
+    }),
+  )
+  return step
+}
+
+export async function getGoalSteps(goalId: string): Promise<AgentGoalStep[]> {
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    const list = db.goalSteps ?? []
+    return list
+      .filter((s) => s.goalId === goalId)
+      .sort((a, b) => a.iteration - b.iteration)
+  }
+
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: TABLE_NAME,
+      KeyConditionExpression: "#pk = :pk",
+      ExpressionAttributeNames: { "#pk": PK },
+      ExpressionAttributeValues: { ":pk": "GOAL_STEP" },
+    }),
+  )
+  const list = (result.Items || []) as AgentGoalStep[]
+  return list
+    .filter((s) => s.goalId === goalId)
+    .sort((a, b) => a.iteration - b.iteration)
+}
+

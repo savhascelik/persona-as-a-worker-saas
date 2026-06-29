@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server"
-import { getAllCompanies, getAllPersonas } from "@/lib/db"
-import { executePersonaAgent } from "@/lib/agent-runner"
+import { getAllCompanies, getAllPersonas, getAllGoals } from "@/lib/db"
+import { executePersonaAgent, executeGoalLoop } from "@/lib/agent-runner"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 /**
  * Webhook invoked by Vercel Cron. On each tick, it executes actual AI agent loops
- * (Gemini or OpenAI) for all registered personas across companies.
- *
- * Each persona checks its schedule and credit constraints. If active and funded,
- * the agent evaluates the target platform via MCP tools and determines a high-fidelity
- * action to run, with complete multi-tenant scoping and credit deduction.
+ * (Gemini or OpenAI) for all registered personas across companies,
+ * and advances any active background Agent Goals.
  */
 async function handle(request: Request) {
   const cronSecret = process.env.CRON_SECRET
@@ -23,10 +20,15 @@ async function handle(request: Request) {
   }
 
   const now = new Date()
-  const [personas, companies] = await Promise.all([getAllPersonas(), getAllCompanies()])
+  const [personas, companies, allGoals] = await Promise.all([
+    getAllPersonas(),
+    getAllCompanies(),
+    getAllGoals()
+  ])
 
   const companyMap = new Map(companies.map((c) => [c.id, c]))
 
+  // 1. Regular Persona Seeding Execution
   const results = await Promise.allSettled(
     personas.map(async (persona) => {
       const company = companyMap.get(persona.companyId)
@@ -40,12 +42,26 @@ async function handle(request: Request) {
   const updated = results.filter((r) => r.status === "fulfilled").length
   const failed = results.length - updated
 
+  // 2. Active Agent Goals background worker (process 1 step per goal on each tick)
+  const runningGoals = allGoals.filter((g) => g.status === "running")
+  const goalResults = await Promise.allSettled(
+    runningGoals.map(async (goal) => {
+      return executeGoalLoop(goal.id, now, true)
+    })
+  )
+
+  const goalsProcessed = goalResults.filter((r) => r.status === "fulfilled").length
+  const goalsFailed = goalResults.length - goalsProcessed
+
   return NextResponse.json({
     ok: true,
     processedAt: now.toISOString(),
     personas: personas.length,
     updated,
     failed,
+    runningGoals: runningGoals.length,
+    goalsProcessed,
+    goalsFailed,
   })
 }
 
