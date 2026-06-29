@@ -121,6 +121,25 @@ export async function executePersonaAgent(
         },
         required: ["content"]
       }
+    } else if (toolName === "publish_draft" || toolName.endsWith("__publish_draft")) {
+      description = `Publishes an existing draft blog post.`
+      inputSchema = {
+        type: "object",
+        properties: {
+          post_id: { type: "integer", description: "The unique ID of the draft blog post" }
+        },
+        required: ["post_id"]
+      }
+    } else if (toolName === "upload_media" || toolName.endsWith("__upload_media")) {
+      description = `Uploads or records a text/markdown media asset in Flownie.`
+      inputSchema = {
+        type: "object",
+        properties: {
+          filename: { type: "string", description: "Descriptive name for the file (e.g. data_summary.md)" },
+          content: { type: "string", description: "Markdown or text content of the media file to store" }
+        },
+        required: ["filename", "content"]
+      }
     }
 
     return { name: toolName, description, inputSchema }
@@ -474,6 +493,25 @@ export async function executeGoalLoop(
           threadId: { type: "string", description: "Target thread ID (if replying)" }
         },
         required: ["content"]
+      }
+    } else if (toolName === "publish_draft" || toolName.endsWith("__publish_draft")) {
+      description = `Publishes an existing draft blog post.`
+      inputSchema = {
+        type: "object",
+        properties: {
+          post_id: { type: "integer", description: "The unique ID of the draft blog post" }
+        },
+        required: ["post_id"]
+      }
+    } else if (toolName === "upload_media" || toolName.endsWith("__upload_media")) {
+      description = `Uploads or records a text/markdown media asset in Flownie.`
+      inputSchema = {
+        type: "object",
+        properties: {
+          filename: { type: "string", description: "Descriptive name for the file (e.g. data_summary.md)" },
+          content: { type: "string", description: "Markdown or text content of the media file to store" }
+        },
+        required: ["filename", "content"]
       }
     }
 
