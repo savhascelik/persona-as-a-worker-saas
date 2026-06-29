@@ -243,7 +243,8 @@ export async function scanEndpointAction(url: string): Promise<ScanActionRespons
 }
 
 export async function triggerCompanyPersonasAction(
-  companyId: string
+  companyId: string,
+  force: boolean = true
 ): Promise<{ ok: boolean; results: { id: string; ok: boolean; actionTaken?: string; error?: string }[] }> {
   try {
     const [company, personas] = await Promise.all([
@@ -255,7 +256,9 @@ export async function triggerCompanyPersonasAction(
       throw new Error("Company not found")
     }
 
-    const companyPersonas = personas.filter((p) => p.companyId === companyId && p.status !== "offline" && p.status !== "hibernating")
+    const companyPersonas = personas.filter(
+      (p) => p.companyId === companyId && (force || (p.status !== "offline" && p.status !== "hibernating"))
+    )
     if (companyPersonas.length === 0) {
       return { ok: true, results: [] }
     }
@@ -263,7 +266,7 @@ export async function triggerCompanyPersonasAction(
     const { executePersonaAgent } = await import("@/lib/agent-runner")
     const results = await Promise.all(
       companyPersonas.map(async (persona) => {
-        const res = await executePersonaAgent(persona, company, new Date())
+        const res = await executePersonaAgent(persona, company, new Date(), force)
         return { id: persona.id, ...res }
       })
     )

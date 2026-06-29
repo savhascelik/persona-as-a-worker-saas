@@ -44,6 +44,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isLoaded && user) {
       console.log("DEBUG [SessionProvider]: User loaded:", {
+        user: user,
         email: user.primaryEmailAddress?.emailAddress,
         publicMetadata: user.publicMetadata,
         isAdmin: user.publicMetadata?.role === "admin"

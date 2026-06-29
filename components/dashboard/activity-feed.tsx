@@ -77,13 +77,13 @@ export function ActivityFeed({ personas, companyId }: ActivityFeedProps) {
     setRunMessage(null)
 
     try {
-      const activePersonas = personas.filter(
-        (p) => p.status !== "offline" && p.status !== "hibernating"
+      const companyPersonas = personas.filter(
+        (p) => p.companyId === companyId
       )
 
-      if (activePersonas.length === 0) {
+      if (companyPersonas.length === 0) {
         setRunMessage({
-          text: "No active personas are currently on the clock to run.",
+          text: "No personas have been created for this company yet.",
           isError: true,
         })
         setTriggering(false)

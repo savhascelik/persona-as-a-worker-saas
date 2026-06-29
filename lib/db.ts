@@ -144,6 +144,7 @@ export async function createCompany(id: string, input: CompanyInput): Promise<Co
     creditsConsumed: 0,
     suggestedSkillIds: input.suggestedSkillIds,
     discoveredTools: input.discoveredTools,
+    mcpAuth: input.mcpAuth,
     createdAt: Date.now(),
   }
 

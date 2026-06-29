@@ -13,6 +13,37 @@ import {
 import { CREDIT_COST } from "./billing"
 import { getSkill } from "./skills"
 import { isWithinWorkingHours } from "./simulation"
+import { decrypt } from "./crypto"
+
+function getAuthHeaders(company: Company, targetUrl: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json"
+  }
+  
+  if (!company.mcpAuth) return headers
+  
+  // Find matching config key (either exact match or matched base URL)
+  const cleanTarget = targetUrl.trim().toLowerCase()
+  const matchingKey = Object.keys(company.mcpAuth).find(key => 
+    key.trim().toLowerCase() === cleanTarget || 
+    cleanTarget.startsWith(key.trim().toLowerCase()) ||
+    key.trim().toLowerCase().startsWith(cleanTarget)
+  )
+  
+  if (matchingKey) {
+    const config = company.mcpAuth[matchingKey]
+    if (config && config.credentials) {
+      const decrypted = decrypt(config.credentials)
+      if (config.authType === "bearer") {
+        headers["Authorization"] = `Bearer ${decrypted}`
+      } else if (config.authType === "apiKey") {
+        headers["X-API-Key"] = decrypted
+      }
+    }
+  }
+  
+  return headers
+}
 
 interface McpToolSchema {
   name: string
@@ -28,7 +59,8 @@ interface McpToolSchema {
 export async function executePersonaAgent(
   persona: Persona,
   company: Company,
-  now: Date = new Date()
+  now: Date = new Date(),
+  force: boolean = false
 ): Promise<{ ok: boolean; actionTaken?: string; error?: string }> {
   // 1. Credit Check & Multi-tenant scoping validation (Security)
   if (persona.companyId !== company.id) {
@@ -36,7 +68,7 @@ export async function executePersonaAgent(
   }
 
   // 1.5. Schedule / Working Hours check
-  if (!isWithinWorkingHours(persona, now)) {
+  if (!force && !isWithinWorkingHours(persona, now)) {
     await updatePersona(persona.id, { status: "offline", currentSkillId: undefined })
     return { ok: true, actionTaken: "Persona is outside working hours (offline)." }
   }
@@ -275,7 +307,7 @@ Your behavioral guidelines:
       try {
         const toolRes = await fetch(targetBaseUrl, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getAuthHeaders(company, targetBaseUrl),
           body: JSON.stringify({
             jsonrpc: "2.0",
             method: "tools/call",
@@ -673,7 +705,7 @@ Your behavioral guidelines:
         try {
           const toolRes = await fetch(targetBaseUrl, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: getAuthHeaders(company, targetBaseUrl),
             body: JSON.stringify({
               jsonrpc: "2.0",
               method: "tools/call",

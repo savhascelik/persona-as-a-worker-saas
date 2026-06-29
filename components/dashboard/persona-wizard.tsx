@@ -138,7 +138,7 @@ export function PersonaWizard({
         })}
       </ol>
 
-      <form action={action} className="mt-6 space-y-5">
+      <form action={action} noValidate className="mt-6 space-y-5">
         {/* Step 1: Basic Identity */}
         <div className={step === 1 ? "space-y-5" : "hidden"}>
           <Field label={t.form.company}>
@@ -165,7 +165,7 @@ export function PersonaWizard({
           <Field label={t.form.mcpUrl}>
             <input
               name="mcpUrl"
-              type="url"
+              type="text"
               defaultValue={persona?.mcpUrl}
               placeholder={t.form.mcpPlaceholder}
               className={`${inputClass} font-mono text-xs`}

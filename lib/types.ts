@@ -5,6 +5,11 @@ export type EntityType = "company" | "persona" | "skill"
 /** Platform roles. ADMIN has global oversight; MANAGER owns a single company. */
 export type Role = "ADMIN" | "MANAGER"
 
+export interface McpAuthConfig {
+  authType: "none" | "bearer" | "apiKey"
+  credentials?: string // Encrypted token or key
+}
+
 export interface Company {
   id: string
   entityType: "company"
@@ -24,6 +29,8 @@ export interface Company {
   suggestedSkillIds?: string[]
   /** Tools discovered on the endpoint at onboarding. */
   discoveredTools?: string[]
+  /** Credentials for each configured MCP Server, mapped by its URL. */
+  mcpAuth?: Record<string, McpAuthConfig>
   createdAt: number
 }
 
@@ -35,6 +42,8 @@ export interface CompanyInput {
   suggestedSkillIds?: string[]
   /** Tools discovered on the endpoint at onboarding. */
   discoveredTools?: string[]
+  /** Credentials for each configured MCP Server, mapped by its URL. */
+  mcpAuth?: Record<string, McpAuthConfig>
 }
 
 export interface Persona {
