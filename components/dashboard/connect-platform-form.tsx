@@ -8,6 +8,49 @@ import { createCompanyAction, updateCompanyAction, scanEndpointAction } from "@/
 import type { Company } from "@/lib/types"
 import { Field, Modal, inputClass } from "./form-primitives"
 
+const PRESETS = [
+  {
+    id: "petstore",
+    label: "Petstore Sandbox",
+    name: "Swagger Petstore",
+    domain: "petstore.swagger.io",
+    url: "https://petstore.swagger.io/v2/swagger.json",
+    authType: "none",
+    icon: "🐶",
+    description: "Public mock sandbox. Instantly discovers 20+ operations."
+  },
+  {
+    id: "github",
+    label: "GitHub Gateway",
+    name: "GitHub Enterprise",
+    domain: "github.com",
+    url: "preset_github",
+    authType: "bearer",
+    icon: "🐙",
+    description: "Built-in agent server. Connect using your personal token."
+  },
+  {
+    id: "vercel",
+    label: "Vercel Gateway",
+    name: "Vercel Platform",
+    domain: "vercel.com",
+    url: "preset_vercel",
+    authType: "bearer",
+    icon: "▲",
+    description: "Analyze deploy logs. Connect with your Vercel token."
+  },
+  {
+    id: "slack",
+    label: "Slack Gateway",
+    name: "Slack Platform",
+    domain: "slack.com",
+    url: "preset_slack",
+    authType: "bearer",
+    icon: "💬",
+    description: "Autonomous B2B alerts. Connect with Slack bot token."
+  }
+]
+
 export function ConnectPlatformForm({
   company,
   onClose,
@@ -25,6 +68,9 @@ export function ConnectPlatformForm({
   const [error, setError] = useState<string | null>(null)
 
   const isEdit = !!company
+
+  const [name, setName] = useState(company?.name || "")
+  const [domain, setDomain] = useState(company?.domain || "")
 
   // Initialize with company's existing data if editing
   const initialMcpServers = company
@@ -111,11 +157,48 @@ export function ConnectPlatformForm({
   return (
     <Modal title={title} description={desc} onClose={onClose} closeLabel={t.connect.cancel}>
       <form action={action} className="mt-6 space-y-5">
+        {/* Preset Selector */}
+        {!isEdit && (
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Quick Connect Presets (Built-in MCP Gateways)
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {PRESETS.map((preset) => {
+                const isSelected = mcpServers.length === 1 && mcpServers[0].url === preset.url && mcpServers[0].authType === preset.authType
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      setName(preset.name)
+                      setDomain(preset.domain)
+                      setMcpServers([{ url: preset.url, authType: preset.authType as any, credentials: "" }])
+                      setScan(null)
+                    }}
+                    className={`flex items-start gap-2.5 text-left p-2.5 rounded-xl border transition-all ${
+                      isSelected
+                        ? "border-accent bg-accent/10 ring-1 ring-accent"
+                        : "border-border/40 hover:border-accent/40 bg-muted/5 hover:bg-muted/10"
+                    }`}
+                  >
+                    <span className="text-xl shrink-0 mt-0.5">{preset.icon}</span>
+                    <div className="min-w-0">
+                      <span className="block text-xs font-bold text-foreground truncate">{preset.label}</span>
+                      <span className="block text-[10px] text-muted-foreground leading-tight mt-0.5 line-clamp-1">{preset.description}</span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         <Field label={t.connect.name}>
-          <input name="name" required defaultValue={company?.name || ""} placeholder={t.connect.namePlaceholder} className={inputClass} />
+          <input name="name" required value={name} onChange={(e) => setName(e.target.value)} placeholder={t.connect.namePlaceholder} className={inputClass} />
         </Field>
         <Field label={t.connect.domain}>
-          <input name="domain" required defaultValue={company?.domain || ""} placeholder={t.connect.domainPlaceholder} className={inputClass} />
+          <input name="domain" required value={domain} onChange={(e) => setDomain(e.target.value)} placeholder={t.connect.domainPlaceholder} className={inputClass} />
         </Field>
         <Field label={t.connect.baseUrl}>
           <div className="space-y-3">

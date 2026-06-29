@@ -51,6 +51,38 @@ export function getMcpPrefix(url: string, index: number): string {
  * 3. MCP SSE event stream endpoint.
  */
 export async function scanSingleEndpoint(cleanUrl: string): Promise<string[]> {
+  const lowerUrl = cleanUrl.toLowerCase().trim()
+
+  // 0. Built-in Preset / Gateway resolution (Eliminates sandbox 401 errors for standard services)
+  if (lowerUrl.includes("github.com") || lowerUrl.includes("githubcopilot.com") || lowerUrl === "preset_github") {
+    return [
+      "create_post",     // Content Creator: drafting issues/PR comments
+      "publish_draft",   // Content Creator: publishing/merging PRs
+      "read_thread",     // Social Engager: reading issue discussions
+      "post_reply",      // Social Engager: commenting on issues
+      "read_data",       // Trend Scout: monitoring repo traffic and commits
+      "search_topics"    // Trend Scout: searching tags and topics
+    ]
+  }
+
+  if (lowerUrl.includes("slack.com") || lowerUrl === "preset_slack") {
+    return [
+      "read_thread",     // Social Engager: reading Slack messages
+      "post_reply",      // Social Engager: replying to Slack threads
+      "react_to_post",   // Social Engager / Community Moderator
+      "flag_content",    // Community Moderator: triaging spam posts
+      "read_data"        // Trend Scout
+    ]
+  }
+
+  if (lowerUrl.includes("vercel.com") || lowerUrl === "preset_vercel") {
+    return [
+      "read_data",       // Data Analyst: monitoring deployment tables
+      "query_dataset",   // Data Analyst: querying database/analytics metrics
+      "export_csv"       // Data Analyst
+    ]
+  }
+
   // 1. Try Direct JSON-RPC POST (fast and common for HTTP MCP bridges)
   try {
     const directResponse = await fetch(cleanUrl, {
