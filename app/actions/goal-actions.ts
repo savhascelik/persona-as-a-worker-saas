@@ -109,8 +109,8 @@ export async function runGoalLoopAction(
     // Set status to running immediately so the UI reflects it
     await updateGoal(goalId, { status: "running" })
 
-    // Execute in background
-    executeGoalLoop(goalId)
+    // Execute in background with force=true because it is manually triggered by the user
+    executeGoalLoop(goalId, new Date(), false, true)
       .then((res) => {
         console.log(`[Goal Worker Async] Finished executing goal ${goalId}:`, res)
       })
@@ -145,7 +145,7 @@ export async function executeSingleGoalStepAction(
       return { ok: false, error: "Goal is already completed." }
     }
 
-    const res = await executeGoalLoop(goalId, new Date(), true)
+    const res = await executeGoalLoop(goalId, new Date(), true, true)
     
     revalidatePath("/dashboard")
     revalidatePath(`/dashboard/personas/${goal.personaId}`)

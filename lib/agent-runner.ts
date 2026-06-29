@@ -409,7 +409,8 @@ Your behavioral guidelines:
 export async function executeGoalLoop(
   goalId: string,
   now: Date = new Date(),
-  singleStep: boolean = false
+  singleStep: boolean = false,
+  force: boolean = false
 ): Promise<{ ok: boolean; currentIteration: number; error?: string }> {
   const goal = await getGoalById(goalId)
   if (!goal) {
@@ -437,7 +438,7 @@ export async function executeGoalLoop(
   }
 
   // Schedule / Working Hours check
-  if (!isWithinWorkingHours(persona, now)) {
+  if (!force && !isWithinWorkingHours(persona, now)) {
     await updatePersona(persona.id, { status: "offline", currentSkillId: undefined })
     return { ok: true, currentIteration: goal.currentIteration, error: "Persona is outside working hours (offline)." }
   }
