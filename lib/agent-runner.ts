@@ -167,7 +167,7 @@ Your behavioral guidelines:
   try {
     if (geminiKey) {
       // Execute using Gemini Developer API
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-live-preview:generateContent?key=${geminiKey}`
       
       // Structure tools format for Gemini Tool Call schema
       const geminiTools = mcpTools.map((t) => ({
@@ -557,7 +557,7 @@ Your behavioral guidelines:
 
     try {
       if (geminiKey) {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-live-preview:generateContent?key=${geminiKey}`
         const geminiTools = mcpTools.map((t) => ({
           functionDeclarations: [{
             name: t.name,
