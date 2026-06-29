@@ -38,12 +38,39 @@ export async function createCompanyAction(formData: FormData): Promise<CompanyRe
   const discoveredTools = [
     ...new Set(formData.getAll("discoveredTools").map((v) => String(v).trim()).filter(Boolean)),
   ]
+
+  // Parse and encrypt mcpAuth credentials safely
+  let mcpAuth: Record<string, { authType: "none" | "bearer" | "apiKey"; credentials?: string }> | undefined = undefined
+  const mcpAuthJson = String(formData.get("mcpAuthJson") || "").trim()
+  if (mcpAuthJson) {
+    try {
+      const { encrypt } = await import("@/lib/crypto")
+      const parsed = JSON.parse(mcpAuthJson)
+      mcpAuth = {}
+      for (const [url, auth] of Object.entries(parsed)) {
+        const authTyped = auth as { authType: "none" | "bearer" | "apiKey"; credentials?: string }
+        if (authTyped.authType !== "none" && authTyped.credentials) {
+          mcpAuth[url] = {
+            authType: authTyped.authType,
+            credentials: encrypt(authTyped.credentials)
+          }
+        }
+      }
+      if (Object.keys(mcpAuth).length === 0) {
+        mcpAuth = undefined
+      }
+    } catch (e) {
+      console.error("[createCompanyAction]: Failed to parse mcpAuthJson:", e)
+    }
+  }
+
   const input: CompanyInput = {
     name: String(formData.get("name") || "").trim(),
     domain: String(formData.get("domain") || "").trim(),
     baseUrl: String(formData.get("baseUrl") || "").trim(),
     suggestedSkillIds: suggestedSkillIds.length ? suggestedSkillIds : undefined,
     discoveredTools: discoveredTools.length ? discoveredTools : undefined,
+    mcpAuth,
   }
 
   if (!input.name || !input.domain || !input.baseUrl) {

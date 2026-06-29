@@ -20,11 +20,13 @@ export function ConnectPlatformForm({
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  const [mcpUrls, setMcpUrls] = useState<string[]>([""])
+  const [mcpServers, setMcpServers] = useState<{ url: string; authType: "none" | "bearer" | "apiKey"; credentials?: string }[]>([
+    { url: "", authType: "none", credentials: "" }
+  ])
   const [scanning, setScanning] = useState(false)
   const [scan, setScan] = useState<{ tools: string[]; suggested: string[]; isSimulated?: boolean } | null>(null)
 
-  const combinedUrl = mcpUrls.map((u) => u.trim()).filter(Boolean).join(",")
+  const combinedUrl = mcpServers.map((s) => s.url.trim()).filter(Boolean).join(",")
 
   async function runScan() {
     if (!combinedUrl) return
@@ -52,6 +54,20 @@ export function ConnectPlatformForm({
     scan?.suggested.forEach((id) => formData.append("suggestedSkillIds", id))
     formData.delete("discoveredTools")
     scan?.tools.forEach((tool) => formData.append("discoveredTools", tool))
+
+    // Build the mcpAuthJson payload
+    const mcpAuth: Record<string, { authType: string; credentials?: string }> = {}
+    mcpServers.forEach((s) => {
+      const url = s.url.trim()
+      if (url && s.authType !== "none" && s.credentials) {
+        mcpAuth[url] = {
+          authType: s.authType,
+          credentials: s.credentials.trim()
+        }
+      }
+    })
+    formData.set("mcpAuthJson", JSON.stringify(mcpAuth))
+
     startTransition(async () => {
       const result = await createCompanyAction(formData)
       if (result.ok) {
@@ -74,35 +90,74 @@ export function ConnectPlatformForm({
         </Field>
         <Field label={t.connect.baseUrl}>
           <div className="space-y-3">
-            {mcpUrls.map((url, index) => (
-              <div key={index} className="flex gap-2 items-center">
-                <input
-                  type="text"
-                  required
-                  value={url}
-                  onChange={(e) => {
-                    const next = [...mcpUrls]
-                    next[index] = e.target.value
-                    setMcpUrls(next)
-                    setScan(null)
-                  }}
-                  placeholder={index === 0 ? "https://api.acme.com/mcp" : `e.g. https://slack.acme.com/mcp (Server ${index + 1})`}
-                  className={`${inputClass} font-mono text-xs`}
-                />
-                {mcpUrls.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = mcpUrls.filter((_, i) => i !== index)
-                      setMcpUrls(next)
+            {mcpServers.map((server, index) => (
+              <div key={index} className="space-y-2 rounded-lg border border-border/40 bg-muted/10 p-3">
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    required
+                    value={server.url}
+                    onChange={(e) => {
+                      const next = [...mcpServers]
+                      next[index] = { ...server, url: e.target.value }
+                      setMcpServers(next)
                       setScan(null)
                     }}
-                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-destructive/20 bg-destructive/5 text-destructive transition-colors hover:bg-destructive/15"
-                    title="Remove Server"
+                    placeholder={index === 0 ? "https://api.acme.com/mcp" : `e.g. https://slack.acme.com/mcp (Server ${index + 1})`}
+                    className={`${inputClass} font-mono text-xs`}
+                  />
+                  {mcpServers.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = mcpServers.filter((_, i) => i !== index)
+                        setMcpServers(next)
+                        setScan(null)
+                      }}
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-destructive/20 bg-destructive/5 text-destructive transition-colors hover:bg-destructive/15"
+                      title="Remove Server"
+                    >
+                      <Trash className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Elegant Inline Auth settings */}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-muted-foreground font-medium">Auth:</span>
+                  <select
+                    value={server.authType}
+                    onChange={(e) => {
+                      const next = [...mcpServers]
+                      next[index] = {
+                        ...server,
+                        authType: e.target.value as "none" | "bearer" | "apiKey",
+                        credentials: server.credentials || ""
+                      }
+                      setMcpServers(next)
+                    }}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-xs text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
                   >
-                    <Trash className="h-4 w-4" />
-                  </button>
-                )}
+                    <option value="none">None (Public)</option>
+                    <option value="bearer">Bearer Token</option>
+                    <option value="apiKey">API Key (X-API-Key)</option>
+                  </select>
+
+                  {server.authType !== "none" && (
+                    <input
+                      type="password"
+                      required
+                      value={server.credentials || ""}
+                      onChange={(e) => {
+                        const next = [...mcpServers]
+                        next[index] = { ...server, credentials: e.target.value }
+                        setMcpServers(next)
+                      }}
+                      placeholder={server.authType === "bearer" ? "Bearer eyJhbGci..." : "X-API-Key value..."}
+                      className="h-8 flex-1 min-w-[150px] rounded-md border border-input bg-background px-2 font-mono text-xs text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
+                    />
+                  )}
+                </div>
               </div>
             ))}
 
@@ -110,7 +165,7 @@ export function ConnectPlatformForm({
               <button
                 type="button"
                 onClick={() => {
-                  setMcpUrls([...mcpUrls, ""])
+                  setMcpServers([...mcpServers, { url: "", authType: "none", credentials: "" }])
                   setScan(null)
                 }}
                 className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-accent/40 bg-accent/5 px-3 py-1.5 text-xs font-semibold text-accent transition-colors hover:bg-accent/10"

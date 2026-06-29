@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition, Fragment } from "react"
 import { useRouter } from "next/navigation"
-import { Building2, Clock, Moon, Pencil, Plus, Target, Timer, Trash2, TriangleAlert, Users } from "lucide-react"
+import { Building2, Clock, Moon, Pencil, Plus, Target, Timer, Trash2, TriangleAlert, Users, Activity } from "lucide-react"
 import { useI18n } from "@/components/i18n-provider"
 import { useSession } from "@/components/session-provider"
 import { StatusBadge } from "./status-badge"
@@ -37,6 +37,7 @@ export function DashboardClient({
   const [editing, setEditing] = useState<Persona | undefined>(undefined)
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [expandedPersonaId, setExpandedPersonaId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<"workers" | "activity">("workers")
   const [, startTransition] = useTransition()
 
   const visiblePersonas = useMemo(
@@ -182,138 +183,188 @@ export function DashboardClient({
             </div>
           )}
 
-          <div className="mt-8 grid gap-8 xl:grid-cols-[1fr_340px]">
-            {/* Persona table */}
-            <div className="min-w-0">
-              {visiblePersonas.length === 0 ? (
-                <div className="glow-border flex flex-col items-center rounded-xl px-6 py-20 text-center">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background/50 text-accent">
-                    <Users className="h-6 w-6" />
+          {/* Elegant horizontal tab selector */}
+          <div className="mt-10 flex items-center justify-between border-b border-border/40 pb-px">
+            <div className="flex gap-6">
+              <button
+                type="button"
+                onClick={() => setActiveTab("workers")}
+                className={`relative pb-3 text-sm font-semibold transition-colors duration-200 focus:outline-none ${
+                  activeTab === "workers"
+                    ? "text-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span className="flex items-center gap-2 px-1">
+                  <Users className="h-4 w-4" />
+                  {t.dashboard.title || "Synthetic Workers"}
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold font-mono ${
+                    activeTab === "workers" 
+                      ? "bg-accent/15 text-accent" 
+                      : "bg-muted text-muted-foreground"
+                  }`}>
+                    {visiblePersonas.length}
                   </span>
-                  <p className="mt-4 max-w-sm text-pretty text-sm text-muted-foreground">{t.dashboard.empty}</p>
-                  <button
-                    type="button"
-                    onClick={openCreate}
-                    disabled={noCompanies}
-                    className="mt-6 inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
-                  >
-                    <Plus className="h-4 w-4" />
-                    {t.dashboard.deployFirst}
-                  </button>
-                </div>
-              ) : (
-                <div className="glow-border overflow-hidden rounded-xl">
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse text-sm">
-                      <thead>
-                        <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
-                          <th className="px-5 py-3 font-medium">{t.dashboard.colName}</th>
-                          <th className="px-5 py-3 font-medium">{t.dashboard.colSkills}</th>
-                          <th className="px-5 py-3 font-medium">{t.dashboard.colHours}</th>
-                          <th className="px-5 py-3 font-medium">{t.dashboard.colStatus}</th>
-                          <th className="px-5 py-3 font-medium">{t.dashboard.colOutput}</th>
-                          <th className="px-5 py-3" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {visiblePersonas.map((p) => (
-                          <Fragment key={p.id}>
-                            <tr
-                              className={`border-b border-border/60 transition-opacity last:border-0 ${pendingId === p.id ? "opacity-40" : ""}`}
-                            >
-                            <td className="px-5 py-4">
-                              <div className="font-medium text-foreground">{p.name}</div>
-                              <div className="text-xs text-muted-foreground">{p.role}</div>
-                            </td>
-                            <td className="px-5 py-4">
-                              <div className="flex flex-wrap gap-1">
-                                {p.skillIds?.length ? (
-                                  p.skillIds.map((id) => (
-                                    <span
-                                      key={id}
-                                      className="inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
-                                    >
-                                      {skillMap[id]?.name ?? id}
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">—</span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-5 py-4">
-                              <span className="font-mono text-xs text-muted-foreground">
-                                {pad(p.workStartHour)}:00–{pad(p.workEndHour)}:00
-                              </span>
-                              <div className="text-xs text-muted-foreground">{p.timezone}</div>
-                            </td>
-                            <td className="px-5 py-4">
-                              <StatusBadge status={p.status} />
-                            </td>
-                            <td className="px-5 py-4">
-                              <div className="text-foreground">
-                                {p.postsPublished}{" "}
-                                <span className="text-xs text-muted-foreground">{t.dashboard.posts}</span>
-                              </div>
-                              <div className="text-xs text-muted-foreground">{p.engagementScore} eng.</div>
-                            </td>
-                            <td className="px-5 py-4">
-                              <div className="flex items-center justify-end gap-1">
-                                <button
-                                  type="button"
-                                  onClick={() => setExpandedPersonaId(expandedPersonaId === p.id ? null : p.id)}
-                                  title="Objectives & Goals"
-                                  className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
-                                    expandedPersonaId === p.id
-                                      ? "bg-accent/25 text-accent border border-accent/30"
-                                      : "text-muted-foreground hover:bg-accent/10 hover:text-accent border border-transparent"
-                                  }`}
-                                >
-                                  <Target className="h-4 w-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => openEdit(p)}
-                                  aria-label={t.dashboard.edit}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/10 hover:text-foreground"
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDelete(p.id)}
-                                  disabled={pendingId === p.id}
-                                  aria-label={t.dashboard.delete}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                          {expandedPersonaId === p.id && (
-                            <tr key={`${p.id}-goals`} className="bg-muted/10 border-b border-border/40">
-                              <td colSpan={6} className="px-5 py-5">
-                                <div className="animate-in fade-in-50 duration-200">
-                                  <PersonaGoals
-                                    persona={p}
-                                    company={activeCompany || companies.find((c) => c.id === p.companyId)!}
-                                  />
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
+                </span>
+                {activeTab === "workers" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent animate-in fade-in duration-200" />
+                )}
+              </button>
 
-            {/* Live activity feed */}
-            <ActivityFeed personas={visiblePersonas} companyId={activeCompanyId} />
+              <button
+                type="button"
+                onClick={() => setActiveTab("activity")}
+                className={`relative pb-3 text-sm font-semibold transition-colors duration-200 focus:outline-none ${
+                  activeTab === "activity"
+                    ? "text-foreground font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <span className="flex items-center gap-2 px-1">
+                  <Activity className="h-4 w-4 text-emerald-500 animate-pulse" />
+                  {t.activity.title || "Platform Live Activity"}
+                </span>
+                {activeTab === "activity" && (
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent animate-in fade-in duration-200" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-6">
+            {activeTab === "workers" ? (
+              <div className="min-w-0 animate-in fade-in duration-300">
+                {visiblePersonas.length === 0 ? (
+                  <div className="glow-border flex flex-col items-center rounded-xl px-6 py-20 text-center">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-background/50 text-accent">
+                      <Users className="h-6 w-6" />
+                    </span>
+                    <p className="mt-4 max-w-sm text-pretty text-sm text-muted-foreground">{t.dashboard.empty}</p>
+                    <button
+                      type="button"
+                      onClick={openCreate}
+                      disabled={noCompanies}
+                      className="mt-6 inline-flex h-10 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      <Plus className="h-4 w-4" />
+                      {t.dashboard.deployFirst}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="glow-border overflow-hidden rounded-xl">
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-collapse text-sm">
+                        <thead>
+                          <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
+                            <th className="px-5 py-3 font-medium">{t.dashboard.colName}</th>
+                            <th className="px-5 py-3 font-medium">{t.dashboard.colSkills}</th>
+                            <th className="px-5 py-3 font-medium">{t.dashboard.colHours}</th>
+                            <th className="px-5 py-3 font-medium">{t.dashboard.colStatus}</th>
+                            <th className="px-5 py-3 font-medium">{t.dashboard.colOutput}</th>
+                            <th className="px-5 py-3" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visiblePersonas.map((p) => (
+                            <Fragment key={p.id}>
+                              <tr
+                                className={`border-b border-border/60 transition-opacity last:border-0 ${pendingId === p.id ? "opacity-40" : ""}`}
+                              >
+                                <td className="px-5 py-4">
+                                  <div className="font-medium text-foreground">{p.name}</div>
+                                  <div className="text-xs text-muted-foreground">{p.role}</div>
+                                </td>
+                                <td className="px-5 py-4">
+                                  <div className="flex flex-wrap gap-1">
+                                    {p.skillIds?.length ? (
+                                      p.skillIds.map((id) => (
+                                        <span
+                                          key={id}
+                                          className="inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+                                        >
+                                          {skillMap[id]?.name ?? id}
+                                        </span>
+                                      ))
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">—</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-5 py-4">
+                                  <span className="font-mono text-xs text-muted-foreground">
+                                    {pad(p.workStartHour)}:00–{pad(p.workEndHour)}:00
+                                  </span>
+                                  <div className="text-xs text-muted-foreground">{p.timezone}</div>
+                                </td>
+                                <td className="px-5 py-4">
+                                  <StatusBadge status={p.status} />
+                                </td>
+                                <td className="px-5 py-4">
+                                  <div className="text-foreground">
+                                    {p.postsPublished}{" "}
+                                    <span className="text-xs text-muted-foreground">{t.dashboard.posts}</span>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">{p.engagementScore} eng.</div>
+                                </td>
+                                <td className="px-5 py-4">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedPersonaId(expandedPersonaId === p.id ? null : p.id)}
+                                      title="Objectives & Goals"
+                                      className={`inline-flex h-8 w-8 items-center justify-center rounded-md transition-colors ${
+                                        expandedPersonaId === p.id
+                                          ? "bg-accent/25 text-accent border border-accent/30"
+                                          : "text-muted-foreground hover:bg-accent/10 hover:text-accent border border-transparent"
+                                      }`}
+                                    >
+                                      <Target className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => openEdit(p)}
+                                      aria-label={t.dashboard.edit}
+                                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/10 hover:text-foreground"
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDelete(p.id)}
+                                      disabled={pendingId === p.id}
+                                      aria-label={t.dashboard.delete}
+                                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                              {expandedPersonaId === p.id && (
+                                <tr key={`${p.id}-goals`} className="bg-muted/10 border-b border-border/40">
+                                  <td colSpan={6} className="px-5 py-5">
+                                    <div className="animate-in fade-in-50 duration-200">
+                                      <PersonaGoals
+                                        persona={p}
+                                        company={activeCompany || companies.find((c) => c.id === p.companyId)!}
+                                      />
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="animate-in fade-in duration-300">
+                <ActivityFeed personas={visiblePersonas} companyId={activeCompanyId} />
+              </div>
+            )}
           </div>
         </main>
       </div>

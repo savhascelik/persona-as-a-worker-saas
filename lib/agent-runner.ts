@@ -542,6 +542,13 @@ Your behavioral guidelines:
   let loopRunning = true
 
   while (loopRunning && currentIteration < goal.maxIterations) {
+    // Check if the goal was stopped, deleted, or modified externally
+    const latestGoal = await getGoalById(goalId)
+    if (!latestGoal || latestGoal.status !== "running") {
+      loopRunning = false
+      break
+    }
+
     let thoughtText = ""
     let selectedToolCall: { name: string; args: any } | null = null
     let responseText = ""
