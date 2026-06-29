@@ -40,6 +40,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Debug log to inspect Clerk user metadata in browser console
+  useEffect(() => {
+    if (isLoaded && user) {
+      console.log("DEBUG [SessionProvider]: User loaded:", {
+        email: user.primaryEmailAddress?.emailAddress,
+        publicMetadata: user.publicMetadata,
+        isAdmin: user.publicMetadata?.role === "admin"
+      })
+    }
+  }, [user, isLoaded])
+
   const setActiveCompanyId = useCallback((id: string | null) => {
     setActiveCompanyIdState(id)
     try {

@@ -10,6 +10,11 @@ export default async function AdminPage() {
   // Real, server-side role check. Only Clerk users whose public metadata
   // has `role: "admin"` may load the Admin Console.
   const user = await currentUser()
+  console.log("DEBUG [AdminPage - Server]: User data:", {
+    id: user?.id,
+    email: user?.emailAddresses?.[0]?.emailAddress,
+    publicMetadata: user?.publicMetadata
+  })
   if (user?.publicMetadata?.role !== "admin") {
     redirect("/dashboard")
   }
