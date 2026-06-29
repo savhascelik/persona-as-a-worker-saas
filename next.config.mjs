@@ -6,6 +6,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  experimental: {
+    turbopack: {},
+  },
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.watchOptions = config.watchOptions || {}
