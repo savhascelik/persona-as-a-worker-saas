@@ -7,6 +7,8 @@ import { z } from "zod"
 import {
   addCredits,
   createCompany,
+  updateCompany,
+  deleteCompany,
   createSkillTemplate,
   deleteSkillTemplate,
   updateSkillTemplate,
@@ -80,6 +82,84 @@ export async function createCompanyAction(formData: FormData): Promise<CompanyRe
   const company = await createCompany(nanoid(12), input)
   revalidatePath("/dashboard")
   return { ok: true, company }
+}
+
+export async function updateCompanyAction(id: string, formData: FormData): Promise<CompanyResult> {
+  const existingCompany = await getCompanyById(id)
+  if (!existingCompany) {
+    return { ok: false, error: "Company not found." }
+  }
+
+  const suggestedSkillIds = [
+    ...new Set(formData.getAll("suggestedSkillIds").map((v) => String(v).trim()).filter(Boolean)),
+  ]
+  const discoveredTools = [
+    ...new Set(formData.getAll("discoveredTools").map((v) => String(v).trim()).filter(Boolean)),
+  ]
+
+  // Parse and encrypt mcpAuth credentials safely
+  let mcpAuth: Record<string, { authType: "none" | "bearer" | "apiKey"; credentials?: string }> | undefined = undefined
+  const mcpAuthJson = String(formData.get("mcpAuthJson") || "").trim()
+  if (mcpAuthJson) {
+    try {
+      const { encrypt } = await import("@/lib/crypto")
+      const parsed = JSON.parse(mcpAuthJson)
+      mcpAuth = {}
+      for (const [url, auth] of Object.entries(parsed)) {
+        const authTyped = auth as { authType: "none" | "bearer" | "apiKey"; credentials?: string }
+        if (authTyped.authType !== "none") {
+          if (authTyped.credentials && authTyped.credentials !== "__PRESERVE_EXISTING__") {
+            mcpAuth[url] = {
+              authType: authTyped.authType,
+              credentials: encrypt(authTyped.credentials)
+            }
+          } else if (existingCompany.mcpAuth?.[url]?.credentials) {
+            mcpAuth[url] = {
+              authType: authTyped.authType,
+              credentials: existingCompany.mcpAuth[url].credentials
+            }
+          }
+        }
+      }
+      if (Object.keys(mcpAuth).length === 0) {
+        mcpAuth = undefined
+      }
+    } catch (e) {
+      console.error("[updateCompanyAction]: Failed to parse mcpAuthJson:", e)
+    }
+  }
+
+  const updates: Partial<Omit<Company, "id" | "createdAt" | "entityType" | "totalCredits" | "creditsConsumed">> = {
+    name: String(formData.get("name") || "").trim(),
+    domain: String(formData.get("domain") || "").trim(),
+    baseUrl: String(formData.get("baseUrl") || "").trim(),
+    suggestedSkillIds: suggestedSkillIds.length ? suggestedSkillIds : undefined,
+    discoveredTools: discoveredTools.length ? discoveredTools : undefined,
+    mcpAuth,
+  }
+
+  if (!updates.name || !updates.domain || !updates.baseUrl) {
+    return { ok: false, error: "Platform name, domain, and base API/MCP URL are all required." }
+  }
+
+  const company = await updateCompany(id, updates)
+  if (!company) {
+    return { ok: false, error: "Company not found." }
+  }
+
+  revalidatePath("/dashboard")
+  return { ok: true, company }
+}
+
+export async function deleteCompanyAction(id: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await deleteCompany(id)
+    revalidatePath("/dashboard")
+    return { ok: true }
+  } catch (err: any) {
+    console.error("[Delete Company Action Error]:", err)
+    return { ok: false, error: err.message || "Failed to delete company." }
+  }
 }
 
 /* -------------------------------------------------------------------------- */

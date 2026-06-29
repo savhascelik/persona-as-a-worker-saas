@@ -248,6 +248,94 @@ export async function deductCredits(id: string, amount: number): Promise<Company
   return (result.Attributes as Company) || null
 }
 
+export async function updateCompany(
+  id: string,
+  updates: Partial<Omit<Company, "id" | "createdAt" | "entityType" | "totalCredits" | "creditsConsumed">>,
+): Promise<Company | null> {
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    const idx = db.companies.findIndex((c) => c.id === id)
+    if (idx === -1) return null
+    const immutable = new Set(["PK", "SK", "id", "entityType", "createdAt", "totalCredits", "creditsConsumed"])
+    const c = db.companies[idx]
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === undefined || immutable.has(key)) continue
+      ;(c as any)[key] = value
+    }
+    saveLocalDb(db)
+    return c
+  }
+
+  const expressionParts: string[] = []
+  const expressionAttributeNames: Record<string, string> = {}
+  const expressionAttributeValues: Record<string, unknown> = {}
+
+  const immutable = new Set(["PK", "SK", "id", "entityType", "createdAt", "totalCredits", "creditsConsumed"])
+
+  for (const [key, value] of Object.entries(updates)) {
+    if (value === undefined || immutable.has(key)) continue
+    expressionParts.push(`#${key} = :${key}`)
+    expressionAttributeNames[`#${key}`] = key
+    expressionAttributeValues[`:${key}`] = value
+  }
+
+  if (expressionParts.length === 0) {
+    return getCompanyById(id)
+  }
+
+  const result = await docClient.send(
+    new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: { [PK]: COMPANY_PARTITION, [SK]: id },
+      UpdateExpression: `SET ${expressionParts.join(", ")}`,
+      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ReturnValues: "ALL_NEW",
+    }),
+  )
+
+  return (result.Attributes as Company) || null
+}
+
+export async function deleteCompany(id: string): Promise<boolean> {
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    db.companies = db.companies.filter((c) => c.id !== id)
+    db.personas = db.personas.filter((p) => p.companyId !== id)
+    saveLocalDb(db)
+    return true
+  }
+
+  await docClient.send(
+    new DeleteCommand({
+      TableName: TABLE_NAME,
+      Key: { [PK]: COMPANY_PARTITION, [SK]: id },
+    }),
+  )
+
+  // Fetch and delete all personas for this company
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: TABLE_NAME,
+      KeyConditionExpression: "#pk = :pk",
+      ExpressionAttributeNames: { "#pk": PK },
+      ExpressionAttributeValues: { ":pk": PERSONA_PARTITION },
+    }),
+  )
+  const personas = (result.Items || []) as Persona[]
+  const companyPersonas = personas.filter((p) => p.companyId === id)
+  for (const p of companyPersonas) {
+    await docClient.send(
+      new DeleteCommand({
+        TableName: TABLE_NAME,
+        Key: { [PK]: PERSONA_PARTITION, [SK]: p.id },
+      }),
+    )
+  }
+
+  return true
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Personas                                                                  */
 /* -------------------------------------------------------------------------- */

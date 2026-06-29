@@ -11,8 +11,10 @@ import { ConnectPlatformForm } from "./connect-platform-form"
 import { ActivityFeed } from "./activity-feed"
 import { DashboardHeader } from "./dashboard-header"
 import { deletePersonaAction } from "@/app/actions/persona-actions"
+import { deleteCompanyAction } from "@/app/actions"
 import { useSkills } from "@/components/skills-provider"
 import { PersonaGoals } from "./persona-goals"
+import { Modal } from "./form-primitives"
 import type { Company, Persona } from "@/lib/types"
 
 function pad(n: number) {
@@ -35,10 +37,12 @@ export function DashboardClient({
   const [wizardOpen, setWizardOpen] = useState(false)
   const [connectOpen, setConnectOpen] = useState(false)
   const [editing, setEditing] = useState<Persona | undefined>(undefined)
+  const [editingCompany, setEditingCompany] = useState<Company | undefined>(undefined)
+  const [deletingCompany, setDeletingCompany] = useState<Company | undefined>(undefined)
   const [pendingId, setPendingId] = useState<string | null>(null)
   const [expandedPersonaId, setExpandedPersonaId] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<"workers" | "activity">("workers")
-  const [, startTransition] = useTransition()
+  const [isPending, startTransition] = useTransition()
 
   const visiblePersonas = useMemo(
     () => (activeCompanyId ? personas.filter((p) => p.companyId === activeCompanyId) : personas),
@@ -128,6 +132,8 @@ export function DashboardClient({
                 active={activeCompanyId === c.id}
                 depleted={c.totalCredits <= 0}
                 onClick={() => setActiveCompanyId(c.id)}
+                onEdit={() => setEditingCompany(c)}
+                onDelete={() => setDeletingCompany(c)}
               />
             ))}
             {noCompanies && <p className="px-3 py-2 text-xs text-muted-foreground">{t.tenant.noCompany}</p>}
@@ -387,6 +393,63 @@ export function DashboardClient({
           }}
         />
       )}
+      {editingCompany && (
+        <ConnectPlatformForm
+          company={editingCompany}
+          onClose={() => setEditingCompany(undefined)}
+          onUpdated={() => {
+            setEditingCompany(undefined)
+            router.refresh()
+          }}
+        />
+      )}
+      {deletingCompany && (
+        <Modal
+          title="Disconnect Platform"
+          description={`Are you absolutely sure you want to disconnect "${deletingCompany.name}"? This will permanently delete the platform connection and all of its active AI personas. This action is irreversible.`}
+          onClose={() => setDeletingCompany(undefined)}
+          closeLabel="Cancel"
+        >
+          <div className="mt-6 flex flex-col gap-4">
+            <div className="flex items-center gap-3 rounded-lg border border-destructive/20 bg-destructive/10 p-3.5 text-sm text-destructive">
+              <TriangleAlert className="h-5 w-5 shrink-0 text-destructive" />
+              <p className="font-medium">
+                Warning: This will permanently delete {personas.filter(p => p.companyId === deletingCompany.id).length} AI personas.
+              </p>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeletingCompany(undefined)}
+                className="inline-flex h-10 items-center rounded-md border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent/10"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isPending}
+                onClick={() => {
+                  startTransition(async () => {
+                    const res = await deleteCompanyAction(deletingCompany.id)
+                    if (res.ok) {
+                      if (activeCompanyId === deletingCompany.id) {
+                        setActiveCompanyId(null)
+                      }
+                      setDeletingCompany(undefined)
+                      router.refresh()
+                    } else {
+                      alert(res.error || "Failed to delete platform.")
+                    }
+                  })
+                }}
+                className="inline-flex h-10 items-center rounded-md bg-destructive text-destructive-foreground px-5 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-60"
+              >
+                {isPending ? "Disconnecting..." : "Yes, Disconnect Platform"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -398,6 +461,8 @@ function CompanyItem({
   active,
   depleted,
   onClick,
+  onEdit,
+  onDelete,
 }: {
   label: string
   hint?: string
@@ -405,27 +470,63 @@ function CompanyItem({
   active: boolean
   depleted?: boolean
   onClick: () => void
+  onEdit?: () => void
+  onDelete?: () => void
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-current={active}
-      className={`flex items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
+    <div
+      className={`group relative flex items-center justify-between gap-2 rounded-md px-3 py-2 transition-all duration-300 ${
         active ? "bg-accent/10 text-foreground" : "text-muted-foreground hover:bg-accent/5 hover:text-foreground"
       }`}
     >
-      <span className="min-w-0">
-        <span className="flex items-center gap-1.5">
-          {depleted && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden />}
-          <span className="block truncate font-medium">{label}</span>
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex-1 min-w-0 text-left text-sm outline-none"
+      >
+        <span className="min-w-0 block">
+          <span className="flex items-center gap-1.5">
+            {depleted && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" aria-hidden />}
+            <span className="block truncate font-medium">{label}</span>
+          </span>
+          {hint && <span className="block truncate text-xs text-muted-foreground/70">{hint}</span>}
         </span>
-        {hint && <span className="block truncate text-xs text-muted-foreground">{hint}</span>}
-      </span>
-      <span className="shrink-0 rounded-full border border-border px-1.5 text-[11px] tabular-nums text-muted-foreground">
-        {count}
-      </span>
-    </button>
+      </button>
+
+      {/* Actions (Edit / Delete) — visible on hover in desktop */}
+      <div className="flex items-center gap-1.5 shrink-0 select-none">
+        {onEdit && onDelete ? (
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onEdit()
+              }}
+              className="rounded p-1 text-muted-foreground hover:bg-accent/20 hover:text-foreground transition-colors outline-none"
+              title="Edit Platform"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete()
+              }}
+              className="rounded p-1 text-destructive/80 hover:bg-destructive/10 hover:text-destructive transition-colors outline-none"
+              title="Disconnect Platform"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : null}
+        
+        <span className="shrink-0 rounded-full border border-border px-1.5 text-[11px] tabular-nums text-muted-foreground group-hover:hidden">
+          {count}
+        </span>
+      </div>
+    </div>
   )
 }
 

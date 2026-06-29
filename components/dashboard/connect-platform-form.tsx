@@ -4,27 +4,47 @@ import { useState, useTransition } from "react"
 import { Check, Loader2, Radar, Wrench, Plus, Trash } from "lucide-react"
 import { useI18n } from "@/components/i18n-provider"
 import { useSkills } from "@/components/skills-provider"
-import { createCompanyAction, scanEndpointAction } from "@/app/actions"
+import { createCompanyAction, updateCompanyAction, scanEndpointAction } from "@/app/actions"
 import type { Company } from "@/lib/types"
 import { Field, Modal, inputClass } from "./form-primitives"
 
 export function ConnectPlatformForm({
+  company,
   onClose,
   onCreated,
+  onUpdated,
 }: {
+  company?: Company
   onClose: () => void
   onCreated?: (company: Company) => void
+  onUpdated?: (company: Company) => void
 }) {
   const { t } = useI18n()
   const { skillMap } = useSkills()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  const [mcpServers, setMcpServers] = useState<{ url: string; authType: "none" | "bearer" | "apiKey"; credentials?: string }[]>([
-    { url: "", authType: "none", credentials: "" }
-  ])
+  const isEdit = !!company
+
+  // Initialize with company's existing data if editing
+  const initialMcpServers = company
+    ? company.baseUrl.split(",").map((url) => {
+        const auth = company.mcpAuth?.[url]
+        return {
+          url: url.trim(),
+          authType: auth?.authType || "none",
+          credentials: auth?.credentials ? "__PRESERVE_EXISTING__" : "",
+        }
+      })
+    : [{ url: "", authType: "none", credentials: "" }]
+
+  const [mcpServers, setMcpServers] = useState<{ url: string; authType: "none" | "bearer" | "apiKey"; credentials?: string }[]>(initialMcpServers)
   const [scanning, setScanning] = useState(false)
-  const [scan, setScan] = useState<{ tools: string[]; suggested: string[]; isSimulated?: boolean } | null>(null)
+  const [scan, setScan] = useState<{ tools: string[]; suggested: string[]; isSimulated?: boolean } | null>(
+    company
+      ? { tools: company.discoveredTools || [], suggested: company.suggestedSkillIds || [], isSimulated: false }
+      : null
+  )
 
   const combinedUrl = mcpServers.map((s) => s.url.trim()).filter(Boolean).join(",")
 
@@ -69,24 +89,33 @@ export function ConnectPlatformForm({
     formData.set("mcpAuthJson", JSON.stringify(mcpAuth))
 
     startTransition(async () => {
-      const result = await createCompanyAction(formData)
-      if (result.ok) {
-        onCreated?.(result.company)
-        onClose()
-      } else {
-        setError(result.error)
-      }
+      const result = isEdit
+        ? await updateCompanyAction(company.id, formData)
+        : await createCompanyAction(formData)
+        if (result.ok) {
+          if (isEdit) {
+            onUpdated?.(result.company)
+          } else {
+            onCreated?.(result.company)
+          }
+          onClose()
+        } else {
+          setError(result.error)
+        }
     })
   }
 
+  const title = isEdit ? "Edit Platform Connection" : t.connect.title
+  const desc = isEdit ? "Update name, domain, MCP servers, and auth credentials of this B2B SaaS platform." : t.connect.desc
+
   return (
-    <Modal title={t.connect.title} description={t.connect.desc} onClose={onClose} closeLabel={t.connect.cancel}>
+    <Modal title={title} description={desc} onClose={onClose} closeLabel={t.connect.cancel}>
       <form action={action} className="mt-6 space-y-5">
         <Field label={t.connect.name}>
-          <input name="name" required placeholder={t.connect.namePlaceholder} className={inputClass} />
+          <input name="name" required defaultValue={company?.name || ""} placeholder={t.connect.namePlaceholder} className={inputClass} />
         </Field>
         <Field label={t.connect.domain}>
-          <input name="domain" required placeholder={t.connect.domainPlaceholder} className={inputClass} />
+          <input name="domain" required defaultValue={company?.domain || ""} placeholder={t.connect.domainPlaceholder} className={inputClass} />
         </Field>
         <Field label={t.connect.baseUrl}>
           <div className="space-y-3">
@@ -146,14 +175,20 @@ export function ConnectPlatformForm({
                   {server.authType !== "none" && (
                     <input
                       type="password"
-                      required
-                      value={server.credentials || ""}
+                      required={server.credentials !== "__PRESERVE_EXISTING__"}
+                      value={server.credentials === "__PRESERVE_EXISTING__" ? "" : server.credentials || ""}
                       onChange={(e) => {
                         const next = [...mcpServers]
                         next[index] = { ...server, credentials: e.target.value }
                         setMcpServers(next)
                       }}
-                      placeholder={server.authType === "bearer" ? "Bearer eyJhbGci..." : "X-API-Key value..."}
+                      placeholder={
+                        server.credentials === "__PRESERVE_EXISTING__"
+                          ? "Saved Credential (Leave blank to keep unchanged)"
+                          : server.authType === "bearer"
+                          ? "Bearer eyJhbGci..."
+                          : "X-API-Key value..."
+                      }
                       className="h-8 flex-1 min-w-[150px] rounded-md border border-input bg-background px-2 font-mono text-xs text-foreground outline-none focus:border-ring focus:ring-1 focus:ring-ring"
                     />
                   )}
@@ -273,7 +308,7 @@ export function ConnectPlatformForm({
             disabled={isPending}
             className="inline-flex h-10 items-center rounded-md bg-foreground px-5 text-sm font-medium text-background transition-opacity hover:opacity-90 disabled:opacity-60"
           >
-            {isPending ? t.connect.submitting : t.connect.submit}
+            {isPending ? t.connect.submitting : isEdit ? "Save Changes" : t.connect.submit}
           </button>
         </div>
       </form>
