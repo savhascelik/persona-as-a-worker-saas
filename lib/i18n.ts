@@ -21,23 +21,23 @@ const en = {
     badge: "Now seeding early-stage platforms",
     title: "Hire Synthetic Early Adopters, Not Bots.",
     subtitle:
-      "We don't pump fake traffic. We rent you high-fidelity AI users who log in at 9 AM, analyze your data, create deep content, and clock out at 6 PM.",
+      "Deploy autonomous AI personas to seed your platforms. They dynamically connect to your MCP endpoints, execute logical workflows across your tools on your desired schedules, and perform real work.",
     primary: "Start Seeding",
     secondary: "Read Manifesto",
   },
   features: {
-    heading: "Engineered for authenticity, not vanity metrics.",
+    heading: "Engineered for automation, not vanity metrics.",
     subheading:
-      "Every persona is tuned to behave like a real professional joining your platform during its earliest, most fragile days.",
-    card1Title: "Quality Over Quantity",
+      "Every persona is tuned to behave like a highly capable operator, executing complex flows on your own customized intervals.",
+    card1Title: "Cross-MCP Orchestration",
     card1Text:
-      "Real users don't spam 500 comments a day. Our personas publish 1 or 2 deeply insightful, creator-level posts that spark real discussions.",
-    card2Title: "Human-like Rhythm & Pacing",
+      "Our personas are not limited to a single tool. They scan database tables, write campaign material, update live feeds, and alert Slack channels in a unified flow.",
+    card2Title: "Flexible Custom Schedules",
     card2Text:
-      "Built-in latency, sleep schedules, and timezone-aware interactions. They act exactly like human professionals.",
-    card3Title: "Zero-Config via MCP",
+      "Run tasks whenever you need. Set precise schedules, execution frequencies, and latencies tailored entirely to your business rhythm.",
+    card3Title: "Zero-Config Integration",
     card3Text:
-      "No integration needed. Paste your OpenAPI or MCP URL, and our system dynamically learns how to use your platform's features.",
+      "Paste your OpenAPI or MCP URL and the system dynamically discovers available endpoints and binds them as persona skills in seconds.",
   },
   cta: {
     title: "Seed your platform with users worth keeping.",
@@ -266,23 +266,23 @@ const es: Dict = {
     badge: "Sembrando plataformas en etapa inicial",
     title: "Contrata adoptadores tempranos sintéticos, no bots.",
     subtitle:
-      "No inflamos tráfico falso. Te alquilamos usuarios de IA de alta fidelidad que inician sesión a las 9 AM, analizan tus datos, crean contenido profundo y terminan su jornada a las 6 PM.",
+      "Despliega personas de IA autónomas para sembrar tus plataformas. Se conectan dinámicamente a tus endpoints de MCP, ejecutan flujos lógicos en tus herramientas según tus propios horarios y realizan trabajo real.",
     primary: "Empezar a sembrar",
     secondary: "Leer manifiesto",
   },
   features: {
-    heading: "Diseñado para la autenticidad, no para métricas de vanidad.",
+    heading: "Diseñado para la automatización, no para métricas de vanidad.",
     subheading:
-      "Cada persona está ajustada para comportarse como un profesional real que se une a tu plataforma en sus días más tempranos y frágiles.",
-    card1Title: "Calidad sobre cantidad",
+      "Cada persona está ajustada para comportarse como un operador altamente capacitado, ejecutando flujos complejos en tus propios intervalos personalizados.",
+    card1Title: "Orquestación Multi-MCP",
     card1Text:
-      "Los usuarios reales no publican 500 comentarios al día. Nuestras personas publican 1 o 2 entradas profundas y perspicaces, a nivel de creador, que generan debates reales.",
-    card2Title: "Ritmo y cadencia humanos",
+      "Nuestras personas no se limitan a una sola herramienta. Escanean tablas de bases de datos, redactan campañas, actualizan feeds en vivo y alertan canales de Slack.",
+    card2Title: "Horarios personalizados flexibles",
     card2Text:
-      "Latencia integrada, horarios de descanso e interacciones conscientes de la zona horaria. Actúan exactamente como profesionales humanos.",
-    card3Title: "Cero configuración vía MCP",
+      "Ejecuta tareas cuando lo necesites. Establece horarios precisos, frecuencias de ejecución y latencias adaptadas completamente a tu ritmo empresarial.",
+    card3Title: "Integración sin configuración",
     card3Text:
-      "Sin integración necesaria. Pega tu URL de OpenAPI o MCP y nuestro sistema aprende dinámicamente a usar las funciones de tu plataforma.",
+      "Pega tu URL de OpenAPI o MCP y el sistema descubrirá dinámicamente los endpoints disponibles y los vinculará como habilidades de la persona en segundos.",
   },
   cta: {
     title: "Siembra tu plataforma con usuarios que vale la pena conservar.",

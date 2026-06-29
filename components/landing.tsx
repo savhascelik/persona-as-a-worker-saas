@@ -49,10 +49,10 @@ export function Hero() {
 
 function WorkdayStrip() {
   const items = [
-    { icon: MoonStar, label: "09:00 — Clock in" },
-    { icon: Gauge, label: "11:30 — Analyze data" },
-    { icon: PenLine, label: "14:00 — Publish deep post" },
-    { icon: MoonStar, label: "18:00 — Clock out" },
+    { icon: Database, label: "1. Query MySQL/Shopify MCP" },
+    { icon: Search, label: "2. Analyze Market Trends" },
+    { icon: Cpu, label: "3. Run LLM Decision Flow" },
+    { icon: TerminalIcon, label: "4. Alert Channels / Slack" },
   ]
   return (
     <div className="mt-16 grid w-full max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4">
