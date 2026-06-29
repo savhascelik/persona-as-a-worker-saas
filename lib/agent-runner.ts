@@ -349,7 +349,7 @@ Your behavioral guidelines:
       await updatePersona(persona.id, {
         status: "active",
         currentSkillId: activeSkillId,
-        postsPublished: isWriteAction ? persona.postsPublished + 1 : persona.postsPublished,
+        postsPublished: persona.postsPublished + 1,
         engagementScore: persona.engagementScore + (isWriteAction ? 15 : 2),
         creditsSpent: (persona.creditsSpent ?? 0) + cost,
         lastActiveAt: now.getTime()
@@ -758,7 +758,7 @@ Your behavioral guidelines:
         await deductCredits(company.id, cost)
         await updatePersona(persona.id, {
           status: "active",
-          postsPublished: isWriteAction ? persona.postsPublished + 1 : persona.postsPublished,
+          postsPublished: persona.postsPublished + 1,
           engagementScore: persona.engagementScore + (isWriteAction ? 15 : 2),
           creditsSpent: (persona.creditsSpent ?? 0) + cost,
           lastActiveAt: now.getTime()

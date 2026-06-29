@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition, Fragment } from "react"
 import { useRouter } from "next/navigation"
-import { Building2, Clock, Moon, Pencil, Plus, Target, Timer, Trash2, TriangleAlert, Users, Activity } from "lucide-react"
+import { Building2, Clock, Moon, Pencil, Plus, Target, Timer, Trash2, TriangleAlert, Users, Activity, Terminal } from "lucide-react"
 import { useI18n } from "@/components/i18n-provider"
 import { useSession } from "@/components/session-provider"
 import { StatusBadge } from "./status-badge"
@@ -165,7 +165,7 @@ export function DashboardClient({
           <div className="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard icon={Users} label={t.dashboard.statTotal} value={stats.total} />
             <StatCard icon={Clock} label={t.dashboard.statActive} value={stats.active} />
-            <StatCard icon={Pencil} label={t.dashboard.statPosts} value={stats.posts} />
+            <StatCard icon={Terminal} label={t.dashboard.statPosts} value={stats.posts} />
             <StatCard icon={Timer} label={t.dashboard.statEngagement} value={stats.engagement} />
           </div>
 
