@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Hexagon } from "lucide-react"
 import { useAuth, SignInButton, UserButton } from "@clerk/nextjs"
@@ -9,6 +10,11 @@ import { LanguageToggle, ThemeToggle } from "./controls"
 export function SiteNav() {
   const { t } = useI18n()
   const { isSignedIn, isLoaded } = useAuth()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/70 backdrop-blur-xl">
@@ -38,7 +44,7 @@ export function SiteNav() {
         <div className="flex items-center gap-3">
           <LanguageToggle />
           <ThemeToggle />
-          {isLoaded && isSignedIn && (
+          {mounted && isLoaded && isSignedIn && (
             <>
               <Link
                 href="/dashboard"
@@ -49,7 +55,7 @@ export function SiteNav() {
               <UserButton />
             </>
           )}
-          {isLoaded && !isSignedIn && (
+          {mounted && isLoaded && !isSignedIn && (
             <SignInButton mode="modal">
               <button
                 type="button"
@@ -64,3 +70,4 @@ export function SiteNav() {
     </header>
   )
 }
+
