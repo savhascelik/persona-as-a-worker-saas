@@ -49,6 +49,18 @@ export function PersonaWizard({
   )
   const [companyId, setCompanyId] = useState(persona?.companyId ?? defaultCompanyId ?? companies[0]?.id ?? "")
 
+  // Form input states (Fully Controlled)
+  const [name, setName] = useState(persona?.name ?? "")
+  const [role, setRole] = useState(persona?.role ?? "")
+  const [platform, setPlatform] = useState(persona?.platform ?? "")
+  const [mcpUrl, setMcpUrl] = useState(persona?.mcpUrl ?? "")
+  const [timezone, setTimezone] = useState(persona?.timezone ?? "America/New_York")
+  const [workStartHour, setWorkStartHour] = useState(persona?.workStartHour ?? 9)
+  const [workEndHour, setWorkEndHour] = useState(persona?.workEndHour ?? 18)
+  const [postsPerDay, setPostsPerDay] = useState(persona?.postsPerDay ?? 2)
+  const [minLatencySeconds, setMinLatencySeconds] = useState(persona?.minLatencySeconds ?? 30)
+  const [maxLatencySeconds, setMaxLatencySeconds] = useState(persona?.maxLatencySeconds ?? 240)
+
   const router = useRouter()
   const [customOpen, setCustomOpen] = useState(false)
   const activeCompany = companies.find((c) => c.id === companyId)
@@ -80,12 +92,25 @@ export function PersonaWizard({
     setStep((s) => Math.max(1, s - 1))
   }
 
-  function action(formData: FormData) {
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
     setError(null)
-    // Inject controlled values that live outside native inputs.
+
+    const formData = new FormData()
     formData.set("companyId", companyId)
-    formData.delete("skillIds")
+    formData.set("name", name.trim())
+    formData.set("role", role.trim())
+    formData.set("platform", platform.trim())
+    formData.set("mcpUrl", mcpUrl.trim())
+    formData.set("timezone", timezone)
+    formData.set("workStartHour", String(workStartHour))
+    formData.set("workEndHour", String(workEndHour))
+    formData.set("postsPerDay", String(postsPerDay))
+    formData.set("minLatencySeconds", String(minLatencySeconds))
+    formData.set("maxLatencySeconds", String(maxLatencySeconds))
+
     skillIds.forEach((id) => formData.append("skillIds", id))
+
     startTransition(async () => {
       const result = isEdit
         ? await updatePersonaAction(persona!.id, formData)
@@ -138,7 +163,7 @@ export function PersonaWizard({
         })}
       </ol>
 
-      <form action={action} noValidate className="mt-6 space-y-5">
+      <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-5">
         {/* Step 1: Basic Identity */}
         <div className={step === 1 ? "space-y-5" : "hidden"}>
           <Field label={t.form.company}>
@@ -153,20 +178,21 @@ export function PersonaWizard({
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t.form.name}>
-              <input name="name" defaultValue={persona?.name} placeholder={t.form.namePlaceholder} className={inputClass} />
+              <input name="name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t.form.namePlaceholder} className={inputClass} />
             </Field>
             <Field label={t.form.role}>
-              <input name="role" defaultValue={persona?.role} placeholder={t.form.rolePlaceholder} className={inputClass} />
+              <input name="role" value={role} onChange={(e) => setRole(e.target.value)} placeholder={t.form.rolePlaceholder} className={inputClass} />
             </Field>
           </div>
           <Field label={t.form.platform}>
-            <input name="platform" defaultValue={persona?.platform} placeholder={t.form.platformPlaceholder} className={inputClass} />
+            <input name="platform" value={platform} onChange={(e) => setPlatform(e.target.value)} placeholder={t.form.platformPlaceholder} className={inputClass} />
           </Field>
           <Field label={t.form.mcpUrl}>
             <input
               name="mcpUrl"
               type="text"
-              defaultValue={persona?.mcpUrl}
+              value={mcpUrl}
+              onChange={(e) => setMcpUrl(e.target.value)}
               placeholder={t.form.mcpPlaceholder}
               className={`${inputClass} font-mono text-xs`}
             />
@@ -198,7 +224,7 @@ export function PersonaWizard({
         {/* Step 3: Schedule & Pacing */}
         <div className={step === 3 ? "space-y-5" : "hidden"}>
           <Field label={t.form.timezone}>
-            <select name="timezone" defaultValue={persona?.timezone ?? "America/New_York"} className={inputClass}>
+            <select name="timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} className={inputClass}>
               {TIMEZONES.map((tz) => (
                 <option key={tz} value={tz}>
                   {tz}
@@ -208,21 +234,21 @@ export function PersonaWizard({
           </Field>
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label={t.form.workStart}>
-              <input name="workStartHour" type="number" min={0} max={23} defaultValue={persona?.workStartHour ?? 9} className={inputClass} />
+              <input name="workStartHour" type="number" min={0} max={23} value={workStartHour} onChange={(e) => setWorkStartHour(Number(e.target.value))} className={inputClass} />
             </Field>
             <Field label={t.form.workEnd}>
-              <input name="workEndHour" type="number" min={0} max={23} defaultValue={persona?.workEndHour ?? 18} className={inputClass} />
+              <input name="workEndHour" type="number" min={0} max={23} value={workEndHour} onChange={(e) => setWorkEndHour(Number(e.target.value))} className={inputClass} />
             </Field>
             <Field label={t.form.postsPerDay}>
-              <input name="postsPerDay" type="number" min={1} max={50} defaultValue={persona?.postsPerDay ?? 2} className={inputClass} />
+              <input name="postsPerDay" type="number" min={1} max={50} value={postsPerDay} onChange={(e) => setPostsPerDay(Number(e.target.value))} className={inputClass} />
             </Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t.form.minLatency}>
-              <input name="minLatencySeconds" type="number" min={0} defaultValue={persona?.minLatencySeconds ?? 30} className={inputClass} />
+              <input name="minLatencySeconds" type="number" min={0} value={minLatencySeconds} onChange={(e) => setMinLatencySeconds(Number(e.target.value))} className={inputClass} />
             </Field>
             <Field label={t.form.maxLatency}>
-              <input name="maxLatencySeconds" type="number" min={1} defaultValue={persona?.maxLatencySeconds ?? 240} className={inputClass} />
+              <input name="maxLatencySeconds" type="number" min={1} value={maxLatencySeconds} onChange={(e) => setMaxLatencySeconds(Number(e.target.value))} className={inputClass} />
             </Field>
           </div>
         </div>

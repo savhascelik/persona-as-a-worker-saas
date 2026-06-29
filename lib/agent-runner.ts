@@ -8,7 +8,8 @@ import {
   updateGoal,
   getGoalSteps,
   getCompanyById,
-  getPersonaById
+  getPersonaById,
+  getAllSkillTemplates
 } from "./db"
 import { CREDIT_COST } from "./billing"
 import { getSkill } from "./skills"
@@ -87,7 +88,7 @@ export async function executePersonaAgent(
 
   // Pick an active skill for this tick
   const activeSkillId = skillIds[Math.floor(Math.random() * skillIds.length)]
-  const skill = getSkill(activeSkillId)
+  const skill = getSkill(activeSkillId) || (await getAllSkillTemplates()).find((s) => s.id === activeSkillId)
   const skillName = skill ? skill.name : "General Seeding"
 
   // Load taranan (discovered) tools

@@ -30,7 +30,7 @@ function parseForm(formData: FormData): PersonaInput {
 
   // Skills arrive either as repeated "skillIds" fields or a comma list.
   const rawSkills = formData.getAll("skillIds").flatMap((v) => String(v).split(","))
-  const skillIds = [...new Set(rawSkills.map((s) => s.trim()).filter((s) => s && SKILL_MAP[s]))]
+  const skillIds = [...new Set(rawSkills.map((s) => s.trim()).filter((s) => s.length > 0))]
 
   return {
     companyId: String(formData.get("companyId") || "").trim(),
