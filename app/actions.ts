@@ -17,6 +17,7 @@ import {
   getCompanyById,
   getAllPersonas,
   getActivitiesByCompany,
+  setCompanyCredits,
 } from "@/lib/db"
 import { getPackage } from "@/lib/billing"
 import { SKILL_ICON_NAMES } from "@/lib/skill-icons"
@@ -181,6 +182,30 @@ export async function purchasePackageAction(
 
   revalidatePath("/dashboard")
   revalidatePath("/dashboard/billing")
+  return { ok: true, company }
+}
+
+export async function setCompanyCreditsAction(
+  companyId: string,
+  totalCredits: number
+): Promise<CompanyResult> {
+  const { currentUser } = await import("@clerk/nextjs/server")
+  const user = await currentUser()
+  if (user?.publicMetadata?.role !== "admin") {
+    return { ok: false, error: "Unauthorized. Admin access required." }
+  }
+
+  if (totalCredits < 0) {
+    return { ok: false, error: "Total credits cannot be negative." }
+  }
+
+  const company = await setCompanyCredits(companyId, totalCredits)
+  if (!company) {
+    return { ok: false, error: "Company not found." }
+  }
+
+  revalidatePath("/dashboard")
+  revalidatePath("/dashboard/admin")
   return { ok: true, company }
 }
 

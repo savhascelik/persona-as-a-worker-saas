@@ -32,11 +32,11 @@ export function ConnectPlatformForm({
         const auth = company.mcpAuth?.[url]
         return {
           url: url.trim(),
-          authType: auth?.authType || "none",
+          authType: (auth?.authType || "none") as "none" | "bearer" | "apiKey",
           credentials: auth?.credentials ? "__PRESERVE_EXISTING__" : "",
         }
       })
-    : [{ url: "", authType: "none", credentials: "" }]
+    : [{ url: "", authType: "none" as const, credentials: "" }]
 
   const [mcpServers, setMcpServers] = useState<{ url: string; authType: "none" | "bearer" | "apiKey"; credentials?: string }[]>(initialMcpServers)
   const [scanning, setScanning] = useState(false)

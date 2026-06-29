@@ -248,6 +248,28 @@ export async function deductCredits(id: string, amount: number): Promise<Company
   return (result.Attributes as Company) || null
 }
 
+export async function setCompanyCredits(id: string, totalCredits: number): Promise<Company | null> {
+  if (isLocalDb || !docClient) {
+    const db = getLocalDb()
+    const company = db.companies.find((c) => c.id === id)
+    if (!company) return null
+    company.totalCredits = totalCredits
+    saveLocalDb(db)
+    return company
+  }
+
+  const result = await docClient.send(
+    new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: { [PK]: COMPANY_PARTITION, [SK]: id },
+      UpdateExpression: "SET totalCredits = :totalCredits",
+      ExpressionAttributeValues: { ":totalCredits": totalCredits },
+      ReturnValues: "ALL_NEW",
+    }),
+  )
+  return (result.Attributes as Company) || null
+}
+
 export async function updateCompany(
   id: string,
   updates: Partial<Omit<Company, "id" | "createdAt" | "entityType" | "totalCredits" | "creditsConsumed">>,
