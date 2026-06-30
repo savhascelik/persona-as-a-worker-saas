@@ -120,28 +120,41 @@ if (!isLocalDb) {
 /*  Companies (tenants)                                                       */
 /* -------------------------------------------------------------------------- */
 
-export async function getAllCompanies(): Promise<Company[]> {
+export async function getAllCompanies(userId?: string): Promise<Company[]> {
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
-    return db.companies.sort((a, b) => a.createdAt - b.createdAt)
+    let list = db.companies
+    if (userId) {
+      list = list.filter((c) => c.userId === userId)
+    }
+    return list.sort((a, b) => a.createdAt - b.createdAt)
   }
 
-  const result = await docClient.send(
-    new QueryCommand({
-      TableName: TABLE_NAME,
-      KeyConditionExpression: "#pk = :pk",
-      ExpressionAttributeNames: { "#pk": PK },
-      ExpressionAttributeValues: { ":pk": COMPANY_PARTITION },
-    }),
-  )
+  const queryParams: any = {
+    TableName: TABLE_NAME,
+    KeyConditionExpression: "#pk = :pk",
+    ExpressionAttributeNames: { "#pk": PK },
+    ExpressionAttributeValues: { ":pk": COMPANY_PARTITION },
+  }
+
+  if (userId) {
+    queryParams.FilterExpression = "userId = :userId"
+    queryParams.ExpressionAttributeValues[":userId"] = userId
+  }
+
+  const result = await docClient.send(new QueryCommand(queryParams))
   const companies = (result.Items || []) as Company[]
   return companies.sort((a, b) => a.createdAt - b.createdAt)
 }
 
-export async function getCompanyById(id: string): Promise<Company | null> {
+export async function getCompanyById(id: string, userId?: string): Promise<Company | null> {
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
-    return db.companies.find((c) => c.id === id) || null
+    const company = db.companies.find((c) => c.id === id) || null
+    if (company && userId && company.userId !== userId) {
+      return null
+    }
+    return company
   }
 
   const result = await docClient.send(
@@ -150,13 +163,18 @@ export async function getCompanyById(id: string): Promise<Company | null> {
       Key: { [PK]: COMPANY_PARTITION, [SK]: id },
     }),
   )
-  return (result.Item as Company) || null
+  const company = (result.Item as Company) || null
+  if (company && userId && company.userId !== userId) {
+    return null
+  }
+  return company
 }
 
-export async function createCompany(id: string, input: CompanyInput): Promise<Company> {
+export async function createCompany(id: string, input: CompanyInput & { userId: string }): Promise<Company> {
   const company: Company = {
     id,
     entityType: "company",
+    userId: input.userId,
     name: input.name,
     domain: input.domain,
     baseUrl: input.baseUrl,
@@ -274,12 +292,16 @@ export async function setCompanyCredits(id: string, totalCredits: number): Promi
 export async function updateCompany(
   id: string,
   updates: Partial<Omit<Company, "id" | "createdAt" | "entityType" | "totalCredits" | "creditsConsumed">>,
+  userId?: string,
 ): Promise<Company | null> {
+  const existing = await getCompanyById(id, userId)
+  if (!existing) return null
+
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
     const idx = db.companies.findIndex((c) => c.id === id)
     if (idx === -1) return null
-    const immutable = new Set(["PK", "SK", "id", "entityType", "createdAt", "totalCredits", "creditsConsumed"])
+    const immutable = new Set(["PK", "SK", "id", "entityType", "createdAt", "totalCredits", "creditsConsumed", "userId"])
     const c = db.companies[idx]
     for (const [key, value] of Object.entries(updates)) {
       if (value === undefined || immutable.has(key)) continue
@@ -293,7 +315,7 @@ export async function updateCompany(
   const expressionAttributeNames: Record<string, string> = {}
   const expressionAttributeValues: Record<string, unknown> = {}
 
-  const immutable = new Set(["PK", "SK", "id", "entityType", "createdAt", "totalCredits", "creditsConsumed"])
+  const immutable = new Set(["PK", "SK", "id", "entityType", "createdAt", "totalCredits", "creditsConsumed", "userId"])
 
   for (const [key, value] of Object.entries(updates)) {
     if (value === undefined || immutable.has(key)) continue
@@ -303,7 +325,7 @@ export async function updateCompany(
   }
 
   if (expressionParts.length === 0) {
-    return getCompanyById(id)
+    return existing
   }
 
   const result = await docClient.send(
@@ -320,7 +342,10 @@ export async function updateCompany(
   return (result.Attributes as Company) || null
 }
 
-export async function deleteCompany(id: string): Promise<boolean> {
+export async function deleteCompany(id: string, userId?: string): Promise<boolean> {
+  const existing = await getCompanyById(id, userId)
+  if (!existing) return false
+
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
     db.companies = db.companies.filter((c) => c.id !== id)
@@ -363,10 +388,16 @@ export async function deleteCompany(id: string): Promise<boolean> {
 /*  Personas                                                                  */
 /* -------------------------------------------------------------------------- */
 
-export async function getAllPersonas(): Promise<Persona[]> {
+export async function getAllPersonas(userId?: string): Promise<Persona[]> {
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
-    return db.personas.sort((a, b) => b.createdAt - a.createdAt)
+    let list = db.personas
+    if (userId) {
+      const userCompanies = db.companies.filter((c) => c.userId === userId)
+      const userCompanyIds = new Set(userCompanies.map((c) => c.id))
+      list = list.filter((p) => userCompanyIds.has(p.companyId))
+    }
+    return list.sort((a, b) => b.createdAt - a.createdAt)
   }
 
   const result = await docClient.send(
@@ -378,14 +409,26 @@ export async function getAllPersonas(): Promise<Persona[]> {
     }),
   )
 
-  const personas = (result.Items || []) as Persona[]
+  let personas = (result.Items || []) as Persona[]
+  if (userId) {
+    const userCompanies = await getAllCompanies(userId)
+    const userCompanyIds = new Set(userCompanies.map((c) => c.id))
+    personas = personas.filter((p) => userCompanyIds.has(p.companyId))
+  }
   return personas.sort((a, b) => b.createdAt - a.createdAt)
 }
 
-export async function getPersonaById(id: string): Promise<Persona | null> {
+export async function getPersonaById(id: string, userId?: string): Promise<Persona | null> {
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
-    return db.personas.find((p) => p.id === id) || null
+    const persona = db.personas.find((p) => p.id === id) || null
+    if (persona && userId) {
+      const company = db.companies.find((c) => c.id === persona.companyId)
+      if (!company || company.userId !== userId) {
+        return null
+      }
+    }
+    return persona
   }
 
   const result = await docClient.send(
@@ -395,10 +438,24 @@ export async function getPersonaById(id: string): Promise<Persona | null> {
     }),
   )
 
-  return (result.Item as Persona) || null
+  const persona = (result.Item as Persona) || null
+  if (persona && userId) {
+    const company = await getCompanyById(persona.companyId, userId)
+    if (!company) {
+      return null
+    }
+  }
+  return persona
 }
 
-export async function createPersona(id: string, input: PersonaInput): Promise<Persona> {
+export async function createPersona(id: string, input: PersonaInput, userId?: string): Promise<Persona> {
+  if (userId) {
+    const company = await getCompanyById(input.companyId, userId)
+    if (!company) {
+      throw new Error("Unauthorized: Target company does not belong to the user.")
+    }
+  }
+
   const now = Date.now()
   const persona: Persona = {
     id,
@@ -432,7 +489,18 @@ export async function createPersona(id: string, input: PersonaInput): Promise<Pe
 export async function updatePersona(
   id: string,
   updates: Partial<Omit<Persona, "id" | "createdAt" | "entityType">>,
+  userId?: string,
 ): Promise<Persona | null> {
+  const existing = await getPersonaById(id, userId)
+  if (!existing) return null
+
+  if (updates.companyId && userId) {
+    const company = await getCompanyById(updates.companyId, userId)
+    if (!company) {
+      throw new Error("Unauthorized: Target company does not belong to the user.")
+    }
+  }
+
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
     const idx = db.personas.findIndex((p) => p.id === id)
@@ -462,7 +530,7 @@ export async function updatePersona(
   }
 
   if (expressionParts.length === 0) {
-    return getPersonaById(id)
+    return existing
   }
 
   const result = await docClient.send(
@@ -479,7 +547,10 @@ export async function updatePersona(
   return (result.Attributes as Persona) || null
 }
 
-export async function deletePersona(id: string): Promise<boolean> {
+export async function deletePersona(id: string, userId?: string): Promise<boolean> {
+  const existing = await getPersonaById(id, userId)
+  if (!existing) return false
+
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
     db.personas = db.personas.filter((p) => p.id !== id)
@@ -638,7 +709,12 @@ export async function createActivityEvent(event: Omit<ActivityEvent, "id" | "at"
   return newEvent
 }
 
-export async function getActivitiesByCompany(companyId: string, limit = 20): Promise<ActivityEvent[]> {
+export async function getActivitiesByCompany(companyId: string, limit = 20, userId?: string): Promise<ActivityEvent[]> {
+  if (userId) {
+    const company = await getCompanyById(companyId, userId)
+    if (!company) return []
+  }
+
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
     const list = db.activities ?? []
@@ -671,7 +747,21 @@ export async function getActivitiesByCompany(companyId: string, limit = 20): Pro
 /*  Agent Goals                                                               */
 /* -------------------------------------------------------------------------- */
 
-export async function createGoal(goalInput: Omit<AgentGoal, "id" | "createdAt" | "entityType">): Promise<AgentGoal> {
+export async function createGoal(
+  goalInput: Omit<AgentGoal, "id" | "createdAt" | "entityType">,
+  userId?: string
+): Promise<AgentGoal> {
+  if (userId) {
+    const company = await getCompanyById(goalInput.companyId, userId)
+    if (!company) {
+      throw new Error("Unauthorized: Target company does not belong to the user.")
+    }
+    const persona = await getPersonaById(goalInput.personaId, userId)
+    if (!persona) {
+      throw new Error("Unauthorized: Target persona does not belong to the user.")
+    }
+  }
+
   const goal: AgentGoal = {
     id: `goal_${nanoid(12)}`,
     entityType: "goal",
@@ -696,10 +786,15 @@ export async function createGoal(goalInput: Omit<AgentGoal, "id" | "createdAt" |
   return goal
 }
 
-export async function getGoalById(id: string): Promise<AgentGoal | null> {
+export async function getGoalById(id: string, userId?: string): Promise<AgentGoal | null> {
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
-    return db.goals?.find((g) => g.id === id) || null
+    const goal = db.goals?.find((g) => g.id === id) || null
+    if (goal && userId) {
+      const company = await getCompanyById(goal.companyId, userId)
+      if (!company) return null
+    }
+    return goal
   }
 
   const result = await docClient.send(
@@ -708,10 +803,20 @@ export async function getGoalById(id: string): Promise<AgentGoal | null> {
       Key: { [PK]: "GOAL", [SK]: id },
     }),
   )
-  return (result.Item as AgentGoal) || null
+  const goal = (result.Item as AgentGoal) || null
+  if (goal && userId) {
+    const company = await getCompanyById(goal.companyId, userId)
+    if (!company) return null
+  }
+  return goal
 }
 
-export async function getGoalsByPersona(personaId: string): Promise<AgentGoal[]> {
+export async function getGoalsByPersona(personaId: string, userId?: string): Promise<AgentGoal[]> {
+  if (userId) {
+    const persona = await getPersonaById(personaId, userId)
+    if (!persona) return []
+  }
+
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
     const list = db.goals ?? []
@@ -734,7 +839,12 @@ export async function getGoalsByPersona(personaId: string): Promise<AgentGoal[]>
     .sort((a, b) => b.createdAt - a.createdAt)
 }
 
-export async function getGoalsByCompany(companyId: string): Promise<AgentGoal[]> {
+export async function getGoalsByCompany(companyId: string, userId?: string): Promise<AgentGoal[]> {
+  if (userId) {
+    const company = await getCompanyById(companyId, userId)
+    if (!company) return []
+  }
+
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
     const list = db.goals ?? []
@@ -760,7 +870,11 @@ export async function getGoalsByCompany(companyId: string): Promise<AgentGoal[]>
 export async function updateGoal(
   id: string,
   updates: Partial<Omit<AgentGoal, "id" | "createdAt" | "entityType" | "companyId" | "personaId">>,
+  userId?: string
 ): Promise<AgentGoal | null> {
+  const existing = await getGoalById(id, userId)
+  if (!existing) return null
+
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
     if (!db.goals) db.goals = []
@@ -787,7 +901,7 @@ export async function updateGoal(
   }
 
   if (expressionParts.length === 0) {
-    return getGoalById(id)
+    return existing
   }
 
   const result = await docClient.send(
@@ -804,10 +918,16 @@ export async function updateGoal(
   return (result.Attributes as AgentGoal) || null
 }
 
-export async function getAllGoals(): Promise<AgentGoal[]> {
+export async function getAllGoals(userId?: string): Promise<AgentGoal[]> {
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
-    return db.goals ?? []
+    let list = db.goals ?? []
+    if (userId) {
+      const userCompanies = db.companies.filter((c) => c.userId === userId)
+      const userCompanyIds = new Set(userCompanies.map((c) => c.id))
+      list = list.filter((g) => userCompanyIds.has(g.companyId))
+    }
+    return list
   }
 
   const result = await docClient.send(
@@ -818,7 +938,13 @@ export async function getAllGoals(): Promise<AgentGoal[]> {
       ExpressionAttributeValues: { ":pk": "GOAL" },
     }),
   )
-  return (result.Items || []) as AgentGoal[]
+  let list = (result.Items || []) as AgentGoal[]
+  if (userId) {
+    const userCompanies = await getAllCompanies(userId)
+    const userCompanyIds = new Set(userCompanies.map((c) => c.id))
+    list = list.filter((g) => userCompanyIds.has(g.companyId))
+  }
+  return list
 }
 
 /* -------------------------------------------------------------------------- */
@@ -850,7 +976,12 @@ export async function createGoalStep(stepInput: Omit<AgentGoalStep, "id" | "crea
   return step
 }
 
-export async function getGoalSteps(goalId: string): Promise<AgentGoalStep[]> {
+export async function getGoalSteps(goalId: string, userId?: string): Promise<AgentGoalStep[]> {
+  if (userId) {
+    const goal = await getGoalById(goalId, userId)
+    if (!goal) return []
+  }
+
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
     const list = db.goalSteps ?? []
@@ -873,7 +1004,10 @@ export async function getGoalSteps(goalId: string): Promise<AgentGoalStep[]> {
     .sort((a, b) => a.iteration - b.iteration)
 }
 
-export async function deleteGoal(id: string): Promise<boolean> {
+export async function deleteGoal(id: string, userId?: string): Promise<boolean> {
+  const goal = await getGoalById(id, userId)
+  if (!goal) return false
+
   if (isLocalDb || !docClient) {
     const db = getLocalDb()
     if (!db.goals) db.goals = []

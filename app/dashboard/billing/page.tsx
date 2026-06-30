@@ -8,14 +8,14 @@ export const dynamic = "force-dynamic"
 export default async function BillingPage() {
   const user = await currentUser()
   if (!user) {
-    return null
+    return <div className="p-8 text-center text-red-500 font-semibold">Session expired. Please sign in again.</div>
   }
 
   let companies: Company[] = []
   let creditRequests: CreditRequest[] = []
 
   try {
-    companies = await getAllCompanies()
+    companies = await getAllCompanies(user.id)
     creditRequests = await getCreditRequestsByUser(user.id)
   } catch (error) {
     console.log("[v0] Billing DynamoDB read failed:", error)

@@ -27,7 +27,7 @@ export async function createGoalAction(
   maxIterations: number = 5
 ): Promise<{ ok: boolean; goal?: AgentGoal; error?: string }> {
   try {
-    await requireUser()
+    const userId = await requireUser()
 
     if (!companyId || !personaId || !title.trim()) {
       return { ok: false, error: "Company ID, Persona ID, and Goal title are required." }
@@ -40,7 +40,7 @@ export async function createGoalAction(
       status: "pending",
       maxIterations: Math.max(1, Math.min(20, maxIterations)),
       currentIteration: 0
-    })
+    }, userId)
 
     revalidatePath("/dashboard")
     revalidatePath(`/dashboard/personas/${personaId}`)
@@ -53,8 +53,8 @@ export async function createGoalAction(
 
 export async function getGoalsByPersonaAction(personaId: string): Promise<AgentGoal[]> {
   try {
-    await requireUser()
-    return await getGoalsByPersona(personaId)
+    const userId = await requireUser()
+    return await getGoalsByPersona(personaId, userId)
   } catch (err) {
     console.error("[Get Goals By Persona Action Error]:", err)
     return []
@@ -63,8 +63,8 @@ export async function getGoalsByPersonaAction(personaId: string): Promise<AgentG
 
 export async function getGoalsByCompanyAction(companyId: string): Promise<AgentGoal[]> {
   try {
-    await requireUser()
-    return await getGoalsByCompany(companyId)
+    const userId = await requireUser()
+    return await getGoalsByCompany(companyId, userId)
   } catch (err) {
     console.error("[Get Goals By Company Action Error]:", err)
     return []
@@ -75,12 +75,12 @@ export async function getGoalDetailsAction(
   goalId: string
 ): Promise<{ ok: boolean; goal?: AgentGoal; steps?: AgentGoalStep[]; error?: string }> {
   try {
-    await requireUser()
-    const goal = await getGoalById(goalId)
+    const userId = await requireUser()
+    const goal = await getGoalById(goalId, userId)
     if (!goal) {
       return { ok: false, error: "Goal not found." }
     }
-    const steps = await getGoalSteps(goalId)
+    const steps = await getGoalSteps(goalId, userId)
     return { ok: true, goal, steps }
   } catch (err: any) {
     console.error("[Get Goal Details Action Error]:", err)
@@ -96,8 +96,8 @@ export async function runGoalLoopAction(
   goalId: string
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    await requireUser()
-    const goal = await getGoalById(goalId)
+    const userId = await requireUser()
+    const goal = await getGoalById(goalId, userId)
     if (!goal) {
       return { ok: false, error: "Goal not found." }
     }
@@ -135,8 +135,8 @@ export async function executeSingleGoalStepAction(
   goalId: string
 ): Promise<{ ok: boolean; currentIteration?: number; error?: string }> {
   try {
-    await requireUser()
-    const goal = await getGoalById(goalId)
+    const userId = await requireUser()
+    const goal = await getGoalById(goalId, userId)
     if (!goal) {
       return { ok: false, error: "Goal not found." }
     }
@@ -160,14 +160,14 @@ export async function stopGoalAction(
   goalId: string
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    await requireUser()
-    const goal = await getGoalById(goalId)
+    const userId = await requireUser()
+    const goal = await getGoalById(goalId, userId)
     if (!goal) {
       return { ok: false, error: "Goal not found." }
     }
     
     // Changing status to failed/success acts as a stop signal because executeGoalLoop checks for status === "running"
-    await updateGoal(goalId, { status: "failed", result: "Manually stopped by operator." })
+    await updateGoal(goalId, { status: "failed", result: "Manually stopped by operator." }, userId)
     
     revalidatePath("/dashboard")
     revalidatePath(`/dashboard/personas/${goal.personaId}`)
@@ -182,13 +182,13 @@ export async function deleteGoalAction(
   goalId: string
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    await requireUser()
-    const goal = await getGoalById(goalId)
+    const userId = await requireUser()
+    const goal = await getGoalById(goalId, userId)
     if (!goal) {
       return { ok: false, error: "Goal not found." }
     }
     
-    await deleteGoal(goalId)
+    await deleteGoal(goalId, userId)
     
     revalidatePath("/dashboard")
     revalidatePath(`/dashboard/personas/${goal.personaId}`)

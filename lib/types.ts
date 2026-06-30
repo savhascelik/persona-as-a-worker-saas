@@ -13,6 +13,8 @@ export interface McpAuthConfig {
 export interface Company {
   id: string
   entityType: "company"
+  /** Clerk authenticated user ID who owns this company/tenant. */
+  userId: string
   /** Display name of the tenant, e.g. "Acme Analytics". */
   name: string
   /** Primary domain, e.g. "acme.com". */

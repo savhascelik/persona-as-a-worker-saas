@@ -34,10 +34,19 @@ export type CompanyResult = { ok: true; company: Company } | { ok: false; error:
 /* -------------------------------------------------------------------------- */
 
 export async function listCompaniesAction(): Promise<Company[]> {
-  return getAllCompanies()
+  const { auth } = await import("@clerk/nextjs/server")
+  const { userId } = await auth()
+  if (!userId) throw new Error("UNAUTHENTICATED")
+  return getAllCompanies(userId)
 }
 
 export async function createCompanyAction(formData: FormData): Promise<CompanyResult> {
+  const { auth } = await import("@clerk/nextjs/server")
+  const { userId } = await auth()
+  if (!userId) {
+    return { ok: false, error: "Unauthorized. You must be signed in to create a platform connection." }
+  }
+
   const suggestedSkillIds = [
     ...new Set(formData.getAll("suggestedSkillIds").map((v) => String(v).trim()).filter(Boolean)),
   ]
@@ -70,7 +79,8 @@ export async function createCompanyAction(formData: FormData): Promise<CompanyRe
     }
   }
 
-  const input: CompanyInput = {
+  const input: CompanyInput & { userId: string } = {
+    userId,
     name: String(formData.get("name") || "").trim(),
     domain: String(formData.get("domain") || "").trim(),
     baseUrl: String(formData.get("baseUrl") || "").trim(),
@@ -89,9 +99,15 @@ export async function createCompanyAction(formData: FormData): Promise<CompanyRe
 }
 
 export async function updateCompanyAction(id: string, formData: FormData): Promise<CompanyResult> {
-  const existingCompany = await getCompanyById(id)
+  const { auth } = await import("@clerk/nextjs/server")
+  const { userId } = await auth()
+  if (!userId) {
+    return { ok: false, error: "Unauthorized." }
+  }
+
+  const existingCompany = await getCompanyById(id, userId)
   if (!existingCompany) {
-    return { ok: false, error: "Company not found." }
+    return { ok: false, error: "Company not found or unauthorized." }
   }
 
   const suggestedSkillIds = [
@@ -146,9 +162,9 @@ export async function updateCompanyAction(id: string, formData: FormData): Promi
     return { ok: false, error: "Platform name, domain, and base API/MCP URL are all required." }
   }
 
-  const company = await updateCompany(id, updates)
+  const company = await updateCompany(id, updates, userId)
   if (!company) {
-    return { ok: false, error: "Company not found." }
+    return { ok: false, error: "Company not found or unauthorized." }
   }
 
   revalidatePath("/dashboard")
@@ -157,7 +173,17 @@ export async function updateCompanyAction(id: string, formData: FormData): Promi
 
 export async function deleteCompanyAction(id: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    await deleteCompany(id)
+    const { auth } = await import("@clerk/nextjs/server")
+    const { userId } = await auth()
+    if (!userId) {
+      return { ok: false, error: "Unauthorized." }
+    }
+
+    const success = await deleteCompany(id, userId)
+    if (!success) {
+      return { ok: false, error: "Company not found or unauthorized." }
+    }
+
     revalidatePath("/dashboard")
     return { ok: true }
   } catch (err: any) {
@@ -207,7 +233,7 @@ export async function createCreditRequestAction(
     return { ok: false, error: "Reason cannot exceed 500 characters." }
   }
 
-  const company = await getCompanyById(companyId)
+  const company = await getCompanyById(companyId, user.id)
   if (!company) {
     return { ok: false, error: "Platform connection not found." }
   }
@@ -456,7 +482,10 @@ export async function deleteSkillTemplateAction(id: string): Promise<SkillResult
 /* -------------------------------------------------------------------------- */
 
 export async function getCompanyAction(id: string): Promise<Company | null> {
-  return getCompanyById(id)
+  const { auth } = await import("@clerk/nextjs/server")
+  const { userId } = await auth()
+  if (!userId) throw new Error("UNAUTHENTICATED")
+  return getCompanyById(id, userId)
 }
 
 export type ScanActionResponse = 
@@ -481,9 +510,15 @@ export async function triggerCompanyPersonasAction(
   force: boolean = true
 ): Promise<{ ok: boolean; results: { id: string; ok: boolean; actionTaken?: string; error?: string }[] }> {
   try {
+    const { auth } = await import("@clerk/nextjs/server")
+    const { userId } = await auth()
+    if (!userId) {
+      throw new Error("Unauthorized")
+    }
+
     const [company, personas] = await Promise.all([
-      getCompanyById(companyId),
-      getAllPersonas(),
+      getCompanyById(companyId, userId),
+      getAllPersonas(userId),
     ])
 
     if (!company) {
@@ -518,7 +553,12 @@ export async function getCompanyActivitiesAction(
   limit = 20
 ): Promise<ActivityEvent[]> {
   try {
-    return await getActivitiesByCompany(companyId, limit)
+    const { auth } = await import("@clerk/nextjs/server")
+    const { userId } = await auth()
+    if (!userId) {
+      return []
+    }
+    return await getActivitiesByCompany(companyId, limit, userId)
   } catch (err) {
     console.error("[Get Company Activities Action Error]:", err)
     return []

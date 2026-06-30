@@ -63,8 +63,8 @@ function validatePersona(input: PersonaInput): string | null {
 
 /** Fetch all personas from DynamoDB (used for server-rendered lists). */
 export async function listPersonasAction(): Promise<Persona[]> {
-  await requireUser()
-  return getAllPersonas()
+  const userId = await requireUser()
+  return getAllPersonas(userId)
 }
 
 /**
@@ -73,13 +73,13 @@ export async function listPersonasAction(): Promise<Persona[]> {
  * `@aws-sdk/lib-dynamodb`'s PutCommand on top of `@aws-sdk/client-dynamodb`).
  */
 export async function createPersonaWithSkills(formData: FormData): Promise<ActionResult> {
-  await requireUser()
+  const userId = await requireUser()
 
   const input = parseForm(formData)
   const error = validatePersona(input)
   if (error) return { ok: false, error }
 
-  const persona = await createPersona(nanoid(12), input)
+  const persona = await createPersona(nanoid(12), input, userId)
 
   // Refresh every surface that reads persona data so the new row appears
   // immediately and survives a hard refresh (it now lives in DynamoDB).
@@ -89,13 +89,13 @@ export async function createPersonaWithSkills(formData: FormData): Promise<Actio
 }
 
 export async function updatePersonaAction(id: string, formData: FormData): Promise<ActionResult> {
-  await requireUser()
+  const userId = await requireUser()
 
   const input = parseForm(formData)
   const error = validatePersona(input)
   if (error) return { ok: false, error }
 
-  const persona = await updatePersona(id, input)
+  const persona = await updatePersona(id, input, userId)
   revalidatePath("/dashboard")
   revalidatePath("/dashboard/admin")
   if (!persona) return { ok: false, error: "Persona not found." }
@@ -103,9 +103,9 @@ export async function updatePersonaAction(id: string, formData: FormData): Promi
 }
 
 export async function deletePersonaAction(id: string): Promise<ActionResult> {
-  await requireUser()
+  const userId = await requireUser()
 
-  await deletePersona(id)
+  await deletePersona(id, userId)
   revalidatePath("/dashboard")
   revalidatePath("/dashboard/admin")
   return { ok: true }
