@@ -61,4 +61,4 @@ export const CREDIT_COST = {
 } as const
 
 /** Credits granted to a freshly connected company so it can start seeding. */
-export const STARTER_GRANT = 250
+export const STARTER_GRANT = 5
